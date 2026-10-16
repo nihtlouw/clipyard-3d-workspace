@@ -22,13 +22,15 @@ export interface AgentInfo {
   deskYaw: number;
   /** world position in the lounge while off-shift (x, z) */
   lounge: [number, number];
+  /** facing yaw in the lounge */
+  loungeYaw: number;
 }
 
 export const COMPANY = {
   name: "CLIPYARD",
   tagline: "Autonomous Clip Factory",
   blurb:
-    "Six AI agents turn long-form video into scroll-stopping clips — cutting, hooking, captioning, covering and shipping 24/7 from a converted warehouse floor.",
+    "Six AI agents turn long-form video into scroll-stopping clips — cutting, hooking, captioning, covering and shipping on a 9-to-5 shift from the Bay 7 studio floor.",
   address: "Bay 7 · The Foundry District",
   shift: "Mon–Fri · 09:00–17:00",
   shiftStart: 9,
@@ -45,11 +47,12 @@ export const AGENTS: AgentInfo[] = [
     task: "Routing 128 long-forms into clip queues",
     progress: 0.72,
     clipsToday: 214,
-    station: "Ops deck · center pod",
+    station: "Desk A2 · window row",
     vehicle: "Midnight-blue sedan",
-    desk: [0, -3.5],
+    desk: [0, -3.52],
     deskYaw: 0,
-    lounge: [-6.2, 2.4],
+    lounge: [6.6, 2.2],
+    loungeYaw: -Math.PI / 2,
   },
   {
     id: "nova",
@@ -60,11 +63,12 @@ export const AGENTS: AgentInfo[] = [
     task: "Silence-trimming episode 214 · 42 clips",
     progress: 0.58,
     clipsToday: 389,
-    station: "Edit pod · bay 2",
+    station: "Desk A1 · window row",
     vehicle: "Teal render van",
-    desk: [-4.6, -3.5],
+    desk: [-4.9, -3.52],
     deskYaw: 0,
-    lounge: [-8.2, 2.9],
+    lounge: [6.6, 3.2],
+    loungeYaw: -Math.PI / 2,
   },
   {
     id: "hook",
@@ -75,11 +79,12 @@ export const AGENTS: AgentInfo[] = [
     task: "Generating 500 thumbnail hooks for review",
     progress: 0.41,
     clipsToday: 512,
-    station: "Copy pod · bay 3",
+    station: "Desk A3 · window row",
     vehicle: "Sunrise-yellow hatch",
-    desk: [4.6, -3.5],
+    desk: [4.9, -3.52],
     deskYaw: 0,
-    lounge: [-10, 3.6],
+    lounge: [6.6, 4.2],
+    loungeYaw: -Math.PI / 2,
   },
   {
     id: "lexa",
@@ -90,11 +95,12 @@ export const AGENTS: AgentInfo[] = [
     task: "Burning karaoke captions · ID/EN",
     progress: 0.86,
     clipsToday: 447,
-    station: "Sub pod · bay 4",
+    station: "Desk B1 · front row",
     vehicle: "Mint city scooter",
-    desk: [-4.6, 2.6],
-    deskYaw: Math.PI,
-    lounge: [-10.6, 5.3],
+    desk: [-4.9, 1.08],
+    deskYaw: 0,
+    lounge: [4.2, 2.4],
+    loungeYaw: 1.9,
   },
   {
     id: "pixel",
@@ -105,11 +111,12 @@ export const AGENTS: AgentInfo[] = [
     task: "A/B testing 12 cover variants",
     progress: 0.64,
     clipsToday: 178,
-    station: "Art pod · bay 5",
+    station: "Desk B2 · front row",
     vehicle: "Magenta sport hatch",
-    desk: [0, 2.6],
-    deskYaw: Math.PI,
-    lounge: [-8.6, 5.6],
+    desk: [0, 1.08],
+    deskYaw: 0,
+    lounge: [5.2, 4.3],
+    loungeYaw: 1.1,
   },
   {
     id: "bolt",
@@ -120,11 +127,12 @@ export const AGENTS: AgentInfo[] = [
     task: "Render queue: 37 clips · ETA 12m",
     progress: 0.33,
     clipsToday: 231,
-    station: "Render wall · bay 6",
+    station: "Desk B3 · front row",
     vehicle: "Orange work pickup",
-    desk: [4.6, 2.6],
-    deskYaw: Math.PI,
-    lounge: [-6.6, 5.0],
+    desk: [4.9, 1.08],
+    deskYaw: 0,
+    lounge: [6.05, 2.6],
+    loungeYaw: 1.5,
   },
 ];
 
@@ -150,8 +158,8 @@ export const VEHICLES: VehicleInfo[] = [
     color: "#0ea5a4",
     name: "The Render Van",
     plate: "CLIP·024",
-    pos: [-10.5, 14.5],
-    yaw: Math.PI,
+    pos: [-8.5, 1.68],
+    yaw: Math.PI / 2,
   },
   {
     id: "sedan-akira",
@@ -160,8 +168,8 @@ export const VEHICLES: VehicleInfo[] = [
     color: "#1e3a8a",
     name: "Ops Sedan",
     plate: "CLIP·001",
-    pos: [-5.2, 14.5],
-    yaw: Math.PI,
+    pos: [-8.5, 1.0],
+    yaw: Math.PI / 2,
   },
   {
     id: "hatch-hook",
@@ -170,8 +178,8 @@ export const VEHICLES: VehicleInfo[] = [
     color: "#f59e0b",
     name: "Hook Hatch",
     plate: "CLIP·007",
-    pos: [0.1, 14.5],
-    yaw: Math.PI,
+    pos: [-8.5, 2.36],
+    yaw: Math.PI / 2,
   },
   {
     id: "hatch-pixel",
@@ -180,8 +188,8 @@ export const VEHICLES: VehicleInfo[] = [
     color: "#db2777",
     name: "Cover Cruiser",
     plate: "CLIP·012",
-    pos: [5.4, 14.5],
-    yaw: Math.PI,
+    pos: [-8.5, 3.04],
+    yaw: Math.PI / 2,
   },
   {
     id: "pickup-bolt",
@@ -190,8 +198,8 @@ export const VEHICLES: VehicleInfo[] = [
     color: "#ea580c",
     name: "Ship Truck",
     plate: "CLIP·077",
-    pos: [10.7, 14.5],
-    yaw: Math.PI,
+    pos: [-8.5, 3.72],
+    yaw: Math.PI / 2,
   },
   {
     id: "scooter-lexa",
@@ -200,8 +208,8 @@ export const VEHICLES: VehicleInfo[] = [
     color: "#10b981",
     name: "Sub Scooter",
     plate: "CLIP·009",
-    pos: [15.2, 13.2],
-    yaw: Math.PI * 0.7,
+    pos: [-8.45, 4.44],
+    yaw: Math.PI / 2 + 0.45,
   },
 ];
 

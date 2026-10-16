@@ -1,127 +1,60 @@
-import { useMemo, useRef, useState } from "react";
+/**
+ * Studio lighting + camera for the CLIPYARD isometric diorama.
+ * The 9-to-5 sim clock now shows through the window light and lamp glow
+ * instead of a full sky cycle — flat, bright, cheap.
+ */
+import { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Stars } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { AGENTS, VEHICLES } from "@/lib/hq-data";
-import { dayFactors, useHqStore } from "@/lib/hq-store";
+import { dayFactors, isOnShift, useHqStore } from "@/lib/hq-store";
 
-const C_DAY_TOP = new THREE.Color("#2b62d8");
-const C_DAY_HORIZON = new THREE.Color("#bfe0ff");
-const C_DAY_BOTTOM = new THREE.Color("#17233c");
-const C_SET_TOP = new THREE.Color("#35418f");
-const C_SET_HORIZON = new THREE.Color("#ff9a56");
-const C_SET_BOTTOM = new THREE.Color("#2b1a2e");
-const C_NIGHT_TOP = new THREE.Color("#04070f");
-const C_NIGHT_HORIZON = new THREE.Color("#101c3a");
-const C_NIGHT_BOTTOM = new THREE.Color("#060a14");
+const WARM_DAY = new THREE.Color("#fff6e8");
+const WARM_SET = new THREE.Color("#ffc490");
+const COOL_NIGHT = new THREE.Color("#8fa2e8");
 
-const SUN_DAY = new THREE.Color("#fff4e0");
-const SUN_SET = new THREE.Color("#ff8a4c");
-const SUN_MOON = new THREE.Color("#7f9fff");
-
-/** Gradient sky dome + sun/moon + ambient lighting, driven by the sim clock. */
-export function Sky() {
+/**
+ * Three lights total, no shadow maps (blob shadows carry contact).
+ * Directional tint follows the clock: warm day → sunset → cool night.
+ */
+export function StudioLighting() {
   const sun = useRef<THREE.DirectionalLight>(null);
   const hemi = useRef<THREE.HemisphereLight>(null);
-  const ambient = useRef<THREE.AmbientLight>(null);
-  const [showStars, setShowStars] = useState(false);
-
-  const skyMat = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      side: THREE.BackSide,
-      depthWrite: false,
-      uniforms: {
-        topColor: { value: new THREE.Color() },
-        horizonColor: { value: new THREE.Color() },
-        bottomColor: { value: new THREE.Color() },
-      },
-      vertexShader: /* glsl */ `
-        varying vec3 vDir;
-        void main() {
-          vDir = normalize(position);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: /* glsl */ `
-        varying vec3 vDir;
-        uniform vec3 topColor;
-        uniform vec3 horizonColor;
-        uniform vec3 bottomColor;
-        void main() {
-          float h = vDir.y;
-          vec3 col = h > 0.0
-            ? mix(horizonColor, topColor, pow(min(h * 1.35, 1.0), 0.72))
-            : mix(horizonColor, bottomColor, pow(min(-h * 1.8, 1.0), 0.9));
-          gl_FragColor = vec4(col, 1.0);
-        }
-      `,
-    });
-  }, []);
+  const lamp = useRef<THREE.PointLight>(null);
 
   useFrame(() => {
     const { hour } = useHqStore.getState();
-    const { theta, sunY, daylight, night, sunset } = dayFactors(hour);
-
-    // palette blend
-    const top = skyMat.uniforms.topColor.value as THREE.Color;
-    const hor = skyMat.uniforms.horizonColor.value as THREE.Color;
-    const bot = skyMat.uniforms.bottomColor.value as THREE.Color;
-    top.copy(C_NIGHT_TOP).lerp(C_DAY_TOP, daylight);
-    hor.copy(C_NIGHT_HORIZON).lerp(C_DAY_HORIZON, daylight);
-    bot.copy(C_NIGHT_BOTTOM).lerp(C_DAY_BOTTOM, daylight);
-    top.lerp(C_SET_TOP, sunset * 0.55);
-    hor.lerp(C_SET_HORIZON, sunset * 0.85);
-    bot.lerp(C_SET_BOTTOM, sunset * 0.6);
+    const { daylight, sunset } = dayFactors(hour);
+    const night = 1 - daylight;
 
     if (sun.current) {
-      sun.current.position.set(Math.cos(theta) * 38, Math.max(sunY, -0.18) * 46, 16);
       const c = sun.current.color;
-      c.copy(SUN_DAY);
-      if (sunset > 0.02) c.lerp(SUN_SET, sunset * 0.9);
-      if (sunY < 0) c.copy(SUN_MOON);
-      sun.current.intensity = sunY > 0 ? 0.12 + daylight * 2.1 : 0.22;
+      c.copy(WARM_DAY);
+      if (sunset > 0.02) c.lerp(WARM_SET, sunset * 0.85);
+      if (night > 0.6) c.lerp(COOL_NIGHT, (night - 0.6) * 1.6);
+      sun.current.intensity = 0.55 + daylight * 0.5;
     }
     if (hemi.current) {
-      hemi.current.intensity = 0.35 + daylight * 1.0;
-      (hemi.current.color as THREE.Color).copy(hor);
+      hemi.current.intensity = 0.72 + daylight * 0.42;
     }
-    if (ambient.current) {
-      ambient.current.intensity = 0.16 + daylight * 0.3;
-      (ambient.current.color as THREE.Color).copy(bot).lerp(hor, 0.5);
+    if (lamp.current) {
+      // lounge floor lamp glows in the evening/night
+      lamp.current.intensity = night > 0.35 ? 0.55 * (night - 0.35) * 2.2 : 0;
     }
-
-    const starsOn = night > 0.55;
-    if (showStars !== starsOn) setShowStars(starsOn);
   });
 
   return (
     <group>
-      <mesh material={skyMat} scale={120} frustumCulled={false}>
-        <sphereGeometry args={[1, 32, 20]} />
-      </mesh>
-      {showStars && (
-        <Stars radius={100} depth={30} count={1400} factor={3.2} saturation={0} fade speed={0.5} />
-      )}
-      <ambientLight ref={ambient} intensity={0.3} />
-      <hemisphereLight ref={hemi} intensity={0.8} color="#cfe6ff" groundColor="#2a2e38" />
-      <directionalLight
-        ref={sun}
-        castShadow
-        intensity={1.6}
-        shadow-mapSize={[2048, 2048]}
-        shadow-bias={-0.00035}
-        shadow-camera-left={-28}
-        shadow-camera-right={28}
-        shadow-camera-top={26}
-        shadow-camera-bottom={-18}
-        shadow-camera-near={2}
-        shadow-camera-far={130}
-      />
+      <ambientLight intensity={0.72} color="#f4f2fb" />
+      <hemisphereLight ref={hemi} intensity={0.95} color="#eef0ff" groundColor="#e6e2f2" />
+      <directionalLight ref={sun} position={[14, 18, 10]} intensity={1.0} />
+      {/* window bounce */}
+      <directionalLight position={[-6, 6, -12]} intensity={0.24} color="#dfe6ff" />
+      <pointLight ref={lamp} position={[7.6, 3.4, 1.2]} intensity={0} color="#ffbe78" distance={9} decay={1.6} />
     </group>
   );
 }
-
-// (end of sky module)
 
 /* ---------------------------------- clock + camera ---------------------------------- */
 
@@ -134,76 +67,102 @@ export function ClockDriver() {
 }
 
 const _target = new THREE.Vector3();
-const _desired = new THREE.Vector3();
+const _offset = new THREE.Vector3();
 
-/** Smooth camera flights when the user selects an agent / vehicle. */
+/** Smooth camera pans when the user selects an agent / diecast. */
 export function CameraRig({ controls }: { controls: React.RefObject<any> }) {
-  const focus = useRef({ active: false, t: 0 });
+  const focus = useRef({ token: -1, active: false });
   const cam = useThree((s) => s.camera);
 
   useFrame((_, delta) => {
     const c = controls.current;
     if (!c) return;
-    const { selection, focusToken } = useHqStore.getState();
+    const { selection, focusToken, autoOrbit } = useHqStore.getState();
+
+    // gentle idle sway when auto-orbit is on (clamped by OrbitControls limits)
+    if (autoOrbit && !focus.current.active && !selection && typeof c.setAzimuthalAngle === "function") {
+      const t = performance.now() / 1000;
+      c.setAzimuthalAngle(Math.PI / 4 + Math.sin(t * 0.22) * 0.3);
+    }
+
     if (!selection) return;
 
-    // pick target from data
     let tx = 0;
-    let ty = 2;
+    let ty = 1.6;
     let tz = 0;
     if (selection.kind === "agent") {
       const a = AGENTS.find((x) => x.id === selection.id);
       if (!a) return;
-      const on = useHqStore.getState().hour >= 9 && useHqStore.getState().hour < 17;
+      const on = isOnShift(useHqStore.getState().hour);
       tx = on ? a.desk[0] : a.lounge[0];
-      ty = 1.6;
+      ty = 1.7;
       tz = on ? a.desk[1] : a.lounge[1];
     } else {
       const v = VEHICLES.find((x) => x.id === selection.id);
       if (!v) return;
-      tx = v.pos[0];
-      ty = 1.2;
+      tx = v.pos[0] + 0.4;
+      ty = 1.7;
       tz = v.pos[1];
     }
 
-    if (focus.current.t !== focusToken) {
-      focus.current.t = focusToken;
+    if (focus.current.token !== focusToken) {
+      focus.current.token = focusToken;
       focus.current.active = true;
     }
     if (!focus.current.active) return;
 
     const d = Math.min(delta, 0.1);
-    const k = 1 - Math.exp(-d * 2.6);
+    const k = 1 - Math.exp(-d * 3.2);
     _target.set(tx, ty, tz);
+    // preserve the current view offset (orthographic: only the target matters)
+    _offset.copy(cam.position).sub(c.target);
     c.target.lerp(_target, k);
+    cam.position.copy(c.target).add(_offset);
 
-    // keep the camera's current viewing direction, settle at a nice distance
-    const dir = _desired.copy(cam.position).sub(_target).normalize();
-    if (dir.lengthSq() < 0.001) dir.set(0.6, 0.42, 0.7).normalize();
-    const dist = selection.kind === "agent" ? 7.5 : 9.5;
-    _desired.copy(_target).addScaledVector(dir.setY(Math.max(dir.y, 0.28)).normalize(), dist);
-    cam.position.lerp(_desired, k * 0.9);
-
-    if (c.target.distanceTo(_target) < 0.05) focus.current.active = false;
+    if (c.target.distanceTo(_target) < 0.04) focus.current.active = false;
   });
   return null;
 }
 
-/** Orbit controls with damping, auto-rotate + reset focus target. */
+const ISO_AZIMUTH = Math.PI / 4;
+
+/** Orbit controls locked to pleasant isometric angles — composition always holds. */
 export function CameraControls({ controls }: { controls: React.RefObject<any> }) {
-  const autoOrbit = useHqStore((s) => s.autoOrbit);
   return (
     <OrbitControls
       ref={controls}
       makeDefault
       enableDamping
-      dampingFactor={0.06}
-      target={[0, 2.8, 3.5]}
-      minDistance={6}
-      maxDistance={58}
-      maxPolarAngle={Math.PI * 0.49}
-      autoRotate={autoOrbit}
-      autoRotateSpeed={0.35}
+      dampingFactor={0.08}
+      enablePan={false}
+      target={[0, 1.5, 0]}
+      minZoom={20}
+      maxZoom={64}
+      minPolarAngle={0.92}
+      maxPolarAngle={1.22}
+      minAzimuthAngle={ISO_AZIMUTH - 0.42}
+      maxAzimuthAngle={ISO_AZIMUTH + 0.42}
+      autoRotate={false}
     />
   );
+}
+
+/** Keeps the whole diorama framed on any viewport (phones zoom out). */
+export function ResponsiveZoom() {
+  const camera = useThree((s) => s.camera) as THREE.OrthographicCamera;
+  const size = useThree((s) => s.size);
+  const lastFit = useRef(0);
+
+  const fit = Math.max(16, Math.min(36, (size.width / 19.5) * 1.15, (size.height / 17) * 1.05));
+
+  useFrame(() => {
+    // once the user zooms themselves, stop auto-refitting
+    if (lastFit.current !== 0 && Math.abs(camera.zoom - lastFit.current) > 0.4) return;
+    if (Math.abs(camera.zoom - fit) > 0.05) {
+      camera.zoom = fit;
+      camera.updateProjectionMatrix();
+      lastFit.current = fit;
+    }
+  });
+  return null;
 }
