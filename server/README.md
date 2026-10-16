@@ -77,3 +77,72 @@ dengan Pola A.
 - **Failure semantics**: tandai job `failed` — hoodie akan mendapat ring merah,
   chip ERROR di roster, dan monitor merah di meja, lalu dibersihkan otomatis
   begitu job berikutnya masuk.
+
+---
+
+# Fase 2 — Floor API (sudah dibangun)
+
+`server/floor-api.mjs` adalah produser nyata tanpa dependensi: state lantai
+disimpan di memori, n8n mendorong perubahan, diorama menarik.
+
+```bash
+node server/floor-api.mjs          # 0.0.0.0:8787
+CLIPYARD_FLOOR_TOKEN=kuat-aku node server/floor-api.mjs   # produksi
+```
+
+Vite sudah mem-proxy `/api` → `127.0.0.1:8787`, dan `.env.local` (gitignored)
+berisi `VITE_FLOOR_URL=/api/floor` — jadi `npm run dev` langsung mode LIVE
+selama Floor API berjalan. Badge di panel jam: `LIVE` (sehat) / `LIVE·STALE`
+(tidak ada snapshot > 15 dtk, mis. API mati) / `SIM` (tanpa env).
+
+## Endpoint
+
+| Method | Path | Auth | Fungsi |
+|---|---|---|---|
+| GET | `/api/floor` | — | `FloorSnapshot` untuk diorama (poll 2 dtk / 10 dtk hidden) |
+| GET | `/api/health` | — | `{ ok, jobs, ts }` |
+| POST | `/api/n8n/job` | token | Upsert 1 job (partial ok: `jobId`+`agentId` wajib) |
+| POST | `/api/n8n/stats` | token | Merge sebagian `{clipsShipped,renderQueue,avgClipSec,channelsFed}` |
+| POST | `/api/n8n/reset` | token | Reseed state demo |
+
+Auth: header `X-Clipyard-Token` (atau `?token=`). CORS terbuka (`*`) supaya
+n8n cloud bisa mendorong; kunci token di produksi.
+
+## Contoh cepat
+
+```bash
+# dorong status job (mis. dari node HTTP Request n8n)
+curl -X POST http://localhost:8787/api/n8n/job \
+  -H 'X-Clipyard-Token: clipyard-dev-token' -H 'Content-Type: application/json' \
+  -d '{"jobId":"hook_EP302","agentId":"hook","title":"Drafting hooks · EP302","status":"running","progress":0.1}'
+
+# selesai
+curl -X POST http://localhost:8787/api/n8n/job \
+  -H 'X-Clipyard-Token: clipyard-dev-token' -H 'Content-Type: application/json' \
+  -d '{"jobId":"hook_EP302","status":"done","progress":1,"title":"Drafted 5 hooks · EP302"}'
+
+# stats + verifikasi yang dilihat diorama
+curl -X POST http://localhost:8787/api/n8n/stats \
+  -H 'X-Clipyard-Token: clipyard-dev-token' -H 'Content-Type: application/json' \
+  -d '{"renderQueue":9}'
+curl http://localhost:8787/api/floor | head -c 400
+```
+
+## Template workflow n8n (stage HOOK)
+
+`server/n8n/hook-stage.workflow.json` — impor ke n8n (Workflows → Import from
+File). Isi: Webhook `POST /clipyard/hook` → tandai job RUNNING di Floor API →
+LLM (isi kredensial kamu) → parse → tandai DONE. Sticky note di dalamnya
+berisi langkah adaptasi (URL API, token, kredensial). Untuk uji cepat tanpa
+LLM: hubungkan langsung `Job → RUNNING` ke `Job → DONE`.
+
+## Node-by-node di editor n8n (pola umum)
+
+1. **HTTP Request** (atau node apapun yang menghasilkan status) di akhir tiap
+   tahap → `POST /api/n8n/job`, body JSON `{jobId, agentId, title, status,
+   progress, updatedAt}`.
+2. Mulai tahap → kirim ulang `jobId` yang sama dengan `status:"running"`.
+3. Gagal → `status:"failed"` (hoodie dapat ring merah + chip ERROR, layar
+   monitor merah; otomatis bersih saat job berikutnya masuk).
+4. **HTTP Request** `POST /api/n8n/stats` saat BOLT mem-publish (naikkan
+   `clipsShipped`, sesuaikan `renderQueue`).
