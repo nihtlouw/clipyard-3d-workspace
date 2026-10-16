@@ -50,3 +50,26 @@ fallback ke ui-sans-serif (layout tidak berubah).
 `screenshots/hq-*.png` — hasil QA visual di repo asal (desktop day/night, mobile,
 nameplates, kartu agen & kendaraan). Screenshot smoke-test port ini tersimpan di
 `screenshots/port-check-*.png`.
+
+## Redesign — isometric studio diorama (v2)
+
+Mengacu referensi "cozy isometric studio room": CLIPYARD kini berupa diorama
+interior studio putih-lavender dengan:
+
+- Ruangan sudut 2 dinding + tray putih & soft shadow, kamera isometrik terkunci (orbit ter-clamp)
+- Jendela skyline kota yang mengikuti sim clock 9–5 (siang/senja/malam, matahari/bulan)
+- Rak buku pelangi (instanced), whiteboard "CLIPYARD PIPELINE" live per-agen, jam dinding analog sim time
+- 6 maskot hoodie (warna per-agen dari `hq-data.ts`): duduk + ngetik saat shift, hop ke sofa lounge setelah 17:00, blink + squash-and-stretch
+- Lounge: sofa navy, karpet bulat, tanaman, speaker, lampu lantai (menyala malam hari)
+- Fleet lama tampil sebagai **diecast "CREW GARAGE"** di sideboard — tetap clickable dengan kartu detail
+- Tombol **"Suara"**: ambience studio disintesis WebAudio (room hum + ketikan keyboard + ping), default mati
+- HUD light-theme (kartu putih, teks navy, chip warna agen) + ticker restyle
+
+Optimalisasi kehalusan: geometri statis di-merge per material (~15 draw call untuk
+seluruh statis + instancing untuk buku/daun/roda/mug/bayangan), MeshLambert flat
+tanpa postprocessing & fog, tanpa shadow map (blob shadows), canvas texture
+di-redraw round-robin (1 layar per 0.5 dtk, whiteboard 2 dtk, skyline per 15
+menit sim), `PerformanceMonitor` + `AdaptiveDpr` menurunkan dpr otomatis saat
+perangkat berat, kamera ortografis dengan fit-zoom responsif.
+
+Bukti visual: `screenshots/studio-*.png`.

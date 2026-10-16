@@ -43,17 +43,17 @@
   --radius-md: 14px;
   --radius-lg: 20px;
 
-  /* CLIPYARD 3D workspace HQ */
-  --color-hq-bg: #070b14;
-  --color-hq-panel: #0d1422ee;
-  --color-hq-line: #2a3b55;
-  --color-hq-text: #e8eefb;
-  --color-hq-muted: #93a5c0;
-  --color-hq-cyan: #22d3ee;
-  --color-hq-green: #34d399;
-  --color-hq-amber: #fbbf24;
-  --color-hq-violet: #a78bfa;
-  --color-hq-pink: #f472b6;
+  /* CLIPYARD isometric studio (light diorama theme) */
+  --color-hq-bg: #eef0fb;
+  --color-hq-panel: #ffffffef;
+  --color-hq-line: #dfe3f5;
+  --color-hq-text: #232746;
+  --color-hq-muted: #7a81a6;
+  --color-hq-cyan: #0e7490;
+  --color-hq-green: #047857;
+  --color-hq-amber: #b45309;
+  --color-hq-violet: #6d28d9;
+  --color-hq-pink: #be185d;
   --radius-hq-md: 12px;
   --radius-hq-lg: 18px;
   --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
@@ -228,4 +228,55 @@
   .panel-float {
     animation: none;
   }
+}
+
+/* ---------------------------------- CLIPYARD studio stage ---------------------------------- */
+
+.hq-stage {
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.85), transparent 42%),
+    radial-gradient(circle at 82% 88%, rgba(196, 200, 240, 0.5), transparent 46%),
+    radial-gradient(rgba(35, 39, 70, 0.055) 1.2px, transparent 1.2px),
+    linear-gradient(160deg, #f2f3fc 0%, #e9ebfa 55%, #e4e7f8 100%);
+  background-size:
+    auto,
+    auto,
+    26px 26px,
+    auto;
+}
+
+.hq-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    #232746 0%,
+    #232746 var(--hq-range-p, 50%),
+    #dfe3f5 var(--hq-range-p, 50%),
+    #dfe3f5 100%
+  );
+  outline: none;
+}
+
+.hq-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 3px solid #232746;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(35, 39, 70, 0.35);
+}
+
+.hq-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 3px solid #232746;
+  cursor: pointer;
 }
