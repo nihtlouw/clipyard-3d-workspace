@@ -1,0 +1,119 @@
+{
+  "name": "CLIPYARD · HOOK stage (n8n → Floor API)",
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "id": "note-usage",
+      "name": "Sticky Note — cara pakai",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-780, -260],
+      "parameters": {
+        "width": 520,
+        "height": 460,
+        "content": "## CLIPYARD · HOOK stage\nTemplate workflow untuk satu stage pipeline (HOOK — paling murah: cukup LLM).\n\n**Sebelum aktifkan:**\n1. Node `LLM: write hooks` — isi kredensial OpenAI-compatible kamu (atau ganti URL ke provider lain).\n2. Ganti `http://127.0.0.1:8787` di semua node HTTP ke URL Floor API yang bisa dijangkau n8n (mis. https://floor-api-anda.com).\n3. Ganti token `clipyard-dev-token` di header `X-Clipyard-Token` sesuai env Floor API.\n\n**Uji cepat tanpa LLM:** matikan node LLM + Parse, langsung hubungkan `Job → RUNNING` ke `Job → DONE`."
+      }
+    },
+    {
+      "id": "webhook-in",
+      "name": "Webhook: new long-form",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-480, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clipyard/hook",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "clipyard-hook-stage"
+    },
+    {
+      "id": "job-running",
+      "name": "Job → RUNNING",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-220, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8787/api/n8n/job",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Clipyard-Token", "value": "clipyard-dev-token" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobId: 'hook_' + $json.body.episodeId, agentId: 'hook', title: 'Drafting hooks · ' + ($json.body.title ?? 'long-form'), status: 'running', progress: 0.05, updatedAt: Date.now() }) }}"
+      }
+    },
+    {
+      "id": "llm-hooks",
+      "name": "LLM: write hooks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [40, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', response_format: { type: 'json_object' }, messages: [ { role: 'system', content: 'You write scroll-stopping short-video hooks. Reply JSON: {\"hooks\":[{\"text\":\"…\",\"style\":\"…\"}]} with exactly 5 hooks.' }, { role: 'user', content: 'Episode: ' + $('Webhook: new long-form').item.json.body.title + '. Transcript excerpt: ' + (($('Webhook: new long-form').item.json.body.transcript ?? '').slice(0, 3000)) } ] }) }}",
+        "options": {
+          "note": "Isi generic httpHeaderAuth credential (Authorization: Bearer sk-…) — jangan hardcode key."
+        }
+      }
+    },
+    {
+      "id": "parse-hooks",
+      "name": "Parse hooks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 0],
+      "parameters": {
+        "jsCode": "const payload = $input.first().json;\nlet hooks = [];\ntry { hooks = JSON.parse(payload.choices[0].message.content).hooks ?? []; } catch (e) { hooks = []; }\nif (!hooks.length) throw new Error('LLM returned no usable hooks');\nreturn [{ json: { count: hooks.length, first: hooks[0] } }];"
+      }
+    },
+    {
+      "id": "job-done",
+      "name": "Job → DONE",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8787/api/n8n/job",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Clipyard-Token", "value": "clipyard-dev-token" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobId: 'hook_' + $('Webhook: new long-form').item.json.body.episodeId, agentId: 'hook', title: `Drafted ${$json.count} hooks · EP` + $('Webhook: new long-form').item.json.body.episodeId, status: 'done', progress: 1, updatedAt: Date.now() }) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook: new long-form": {
+      "main": [[{ "node": "Job → RUNNING", "type": "main", "index": 0 }]]
+    },
+    "Job → RUNNING": {
+      "main": [[{ "node": "LLM: write hooks", "type": "main", "index": 0 }]]
+    },
+    "LLM: write hooks": {
+      "main": [[{ "node": "Parse hooks", "type": "main", "index": 0 }]]
+    },
+    "Parse hooks": {
+      "main": [[{ "node": "Job → DONE", "type": "main", "index": 0 }]]
+    }
+  }
+}

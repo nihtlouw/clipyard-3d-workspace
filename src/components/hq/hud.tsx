@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from "react";
+import { useEffect, useReducer, useRef, type CSSProperties } from "react";
 import {
   Bot,
   Car,
@@ -65,6 +65,22 @@ function Chip({ color, children }: { color: string; children: React.ReactNode })
   );
 }
 
+/** Feed health badge: SIM (mock), LIVE (fresh poll), LIVE·STALE (poll silent >15s). */
+function FloorBadge() {
+  const source = useHqStore((s) => s.floorSource);
+  const updatedAt = useHqStore((s) => s.floorUpdatedAt);
+  const [, force] = useReducer((x: number) => x + 1, 0);
+  useEffect(() => {
+    if (source !== "live") return;
+    const id = window.setInterval(force, 1000);
+    return () => window.clearInterval(id);
+  }, [source]);
+
+  if (source !== "live") return <Chip color="#6d28d9">SIM</Chip>;
+  const stale = updatedAt > 0 && Date.now() - updatedAt > 15_000;
+  return <Chip color={stale ? "#b45309" : "#047857"}>{stale ? "LIVE·STALE" : "LIVE"}</Chip>;
+}
+
 /* ---------------------------------- top bar ---------------------------------- */
 
 function TopBar() {
@@ -124,7 +140,6 @@ function ClockPanel() {
   const hour = useHqStore((s) => s.hour);
   const playing = useHqStore((s) => s.playing);
   const speed = useHqStore((s) => s.speed);
-  const floorSource = useHqStore((s) => s.floorSource);
   const setHour = useHqStore((s) => s.setHour);
   const togglePlay = useHqStore((s) => s.togglePlay);
   const setSpeed = useHqStore((s) => s.setSpeed);
@@ -138,9 +153,7 @@ function ClockPanel() {
           <Clock3 className="h-3.5 w-3.5" /> SIM CLOCK
         </span>
         <span className="flex items-center gap-1">
-          <Chip color={floorSource === "live" ? "#047857" : "#6d28d9"}>
-            {floorSource === "live" ? "LIVE" : "SIM"}
-          </Chip>
+          <FloorBadge />
           <Chip color={on ? "#047857" : "#6d28d9"}>{on ? "ON SHIFT" : "OFF SHIFT"}</Chip>
         </span>
       </div>

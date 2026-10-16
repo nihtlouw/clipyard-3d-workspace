@@ -92,3 +92,20 @@ task + progress di kartu detail, chip WORKING/LOUNGE/ERROR di roster, ring
 agen berubah merah saat job gagal, ticker stats, badge SIM/LIVE di panel jam.
 Dokumentasi wiring n8n: `server/README.md`; contoh payload statis:
 `public/api/floor.example.json`.
+
+## Fase 2 — Floor API + webhook n8n (loop live nyata)
+
+- `server/floor-api.mjs`: API produser tanpa dependensi di `:8787` —
+  `GET /api/floor` (kontrak snapshot), `POST /api/n8n/job` (upsert job dari
+  n8n, token), `POST /api/n8n/stats`, `POST /api/n8n/reset`, CORS terbuka.
+- Vite mem-proxy `/api` → Floor API; `.env.local` mengaktifkan mode LIVE
+  (`VITE_FLOOR_URL=/api/floor`). Badge feed kini sadar kesehatan:
+  `LIVE` / `LIVE·STALE` (>15 dtk tanpa snapshot) / `SIM`.
+- `server/n8n/hook-stage.workflow.json`: template workflow n8n siap impor
+  untuk stage HOOK (webhook → RUNNING → LLM → DONE), plus panduan
+  node-by-node di `server/README.md`.
+
+Uji loop end-to-end tanpa n8n: jalankan Floor API + `npm run dev`, lalu
+`curl -X POST localhost:8080/api/n8n/job -H 'X-Clipyard-Token: clipyard-dev-token' \
+ -d '{"jobId":"hook_EP302","agentId":"hook","status":"running","progress":0.1,...}'`
+— dalam ±2 dtk kartu agen/whiteboard menampilkan job itu.
