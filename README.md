@@ -73,3 +73,22 @@ menit sim), `PerformanceMonitor` + `AdaptiveDpr` menurunkan dpr otomatis saat
 perangkat berat, kamera ortografis dengan fit-zoom responsif.
 
 Bukti visual: `screenshots/studio-*.png`.
+
+## Fase 1 — data-first (siap sambung n8n)
+
+Diorama kini digerakkan data lewat kontrak `FloorSnapshot`
+(`src/lib/hq-jobs.ts`): `jobs[]` per agen (queued/running/done/failed +
+progress) dan `stats` lantai. Dua produser di balik interface yang sama
+(`src/lib/hq-floor.ts`):
+
+- **SIM (default)** — simulator mock bawaan dengan siklus job realistis
+  (queue → running → done, kadang failed, BOLT menaikkan clipsShipped).
+- **LIVE** — set `VITE_FLOOR_URL` (lihat `.env.example`) ke endpoint yang
+  membalas `FloorSnapshot` JSON (mis. n8n + DB kecil); polling adaptif 2 dtk /
+  10 dtk tab-hidden, parser defensif (`sanitizeSnapshot`).
+
+Yang otomatis hidup dari data: whiteboard pipeline, layar monitor tiap hoodie,
+task + progress di kartu detail, chip WORKING/LOUNGE/ERROR di roster, ring
+agen berubah merah saat job gagal, ticker stats, badge SIM/LIVE di panel jam.
+Dokumentasi wiring n8n: `server/README.md`; contoh payload statis:
+`public/api/floor.example.json`.

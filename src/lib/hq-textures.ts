@@ -5,7 +5,8 @@
  * on gated ticks so we never allocate per frame.
  */
 import * as THREE from "three";
-import { AGENTS, STATS, type AgentInfo } from "@/lib/hq-data";
+import { AGENTS, type AgentInfo } from "@/lib/hq-data";
+import type { JobStatus } from "@/lib/hq-jobs";
 
 function makeCanvas(w: number, h: number) {
   const canvas = document.createElement("canvas");
@@ -203,7 +204,7 @@ function rgb(c: [number, number, number]) {
 
 export interface ScreenTex {
   tex: THREE.CanvasTexture;
-  redraw: (t: number, onShift: boolean) => void;
+  redraw: (t: number, onShift: boolean, job?: { status: JobStatus; progress: number }) => void;
 }
 
 const SCREEN_W = 256;
@@ -222,7 +223,7 @@ export function createScreen(info: AgentInfo): ScreenTex {
     tone: rnd(),
   }));
 
-  function redraw(t: number, onShift: boolean) {
+  function redraw(t: number, onShift: boolean, job?: { status: JobStatus; progress: number }) {
     // background
     ctx.fillStyle = "#161a33";
     ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
@@ -237,17 +238,22 @@ export function createScreen(info: AgentInfo): ScreenTex {
     ctx.fillStyle = "rgba(16,19,42,0.75)";
     ctx.fillText(info.role.toUpperCase(), 78, 20);
 
-    // progress
-    const p = onShift
-      ? Math.min(0.995, info.progress + Math.sin(t * 0.12) * 0.03)
-      : Math.max(0.02, info.progress - 0.08);
+    // progress — live job when available, static persona otherwise
+    const failed = job?.status === "failed";
+    const queued = job?.status === "queued";
+    const base = job && (job.status === "running" || failed) ? job.progress : info.progress;
+    const p = onShift && !failed
+      ? queued
+        ? 0
+        : Math.min(0.995, base + Math.sin(t * 0.12) * 0.03)
+      : Math.max(0.02, base - 0.08);
     ctx.fillStyle = "#252a4d";
     roundRect(ctx, 12, 42, SCREEN_W - 24, 14, 7);
-    ctx.fillStyle = info.color;
+    ctx.fillStyle = failed ? "#e11d48" : info.color;
     roundRect(ctx, 12, 42, (SCREEN_W - 24) * p, 14, 7);
-    ctx.fillStyle = "#aab2dd";
+    ctx.fillStyle = failed ? "#fda4af" : "#aab2dd";
     ctx.font = "700 11px system-ui, sans-serif";
-    ctx.fillText(`${Math.round(p * 100)}%`, SCREEN_W - 44, 74);
+    ctx.fillText(failed ? "FAILED" : queued ? "QUEUED" : `${Math.round(p * 100)}%`, SCREEN_W - 44, 74);
 
     // timeline blocks
     let x = 12;
@@ -277,6 +283,12 @@ export function createScreen(info: AgentInfo): ScreenTex {
       ctx.fillStyle = "#aab2dd";
       ctx.font = "800 14px system-ui, sans-serif";
       ctx.fillText("OFF SHIFT · Zzz", 74, SCREEN_H / 2 + 16);
+    } else if (failed) {
+      ctx.fillStyle = "rgba(225,29,72,0.16)";
+      ctx.fillRect(0, 30, SCREEN_W, SCREEN_H - 30);
+      ctx.fillStyle = "#fda4af";
+      ctx.font = "800 13px system-ui, sans-serif";
+      ctx.fillText("JOB FAILED · RETRY SOON", 46, SCREEN_H / 2 + 30);
     }
     tex.needsUpdate = true;
   }
@@ -287,9 +299,21 @@ export function createScreen(info: AgentInfo): ScreenTex {
 
 /* ---------------------------------- whiteboard ---------------------------------- */
 
+export interface WhiteboardRow {
+  name: string;
+  color: string;
+  p: number;
+  failed: boolean;
+}
+
 export interface WhiteboardTex {
   tex: THREE.CanvasTexture;
-  redraw: (hour: number, t: number) => void;
+  redraw: (
+    hour: number,
+    t: number,
+    rows: WhiteboardRow[],
+    stats: { clipsShipped: number; renderQueue: number; avgClipSec: number },
+  ) => void;
 }
 
 const WB_W = 512;
@@ -301,7 +325,12 @@ export function createWhiteboard(): WhiteboardTex {
   const ctx = ctx2d(canvas);
   const tex = toTexture(canvas);
 
-  function redraw(hour: number, t: number) {
+  function redraw(
+    hour: number,
+    t: number,
+    rows: WhiteboardRow[],
+    stats: { clipsShipped: number; renderQueue: number; avgClipSec: number },
+  ) {
     ctx.fillStyle = "#fdfdff";
     ctx.fillRect(0, 0, WB_W, WB_H);
 
@@ -313,43 +342,46 @@ export function createWhiteboard(): WhiteboardTex {
     ctx.fillStyle = "#8a90b8";
     ctx.fillText("LIVE · BAY 7 STUDIO FLOOR", 20, 62);
 
-    // rows
-    AGENTS.forEach((a, i) => {
+    // rows — fed from live job data (mock or n8n) with static fallback
+    rows.forEach((row, i) => {
       const y = 92 + i * 32;
-      ctx.fillStyle = a.color;
+      ctx.fillStyle = row.color;
       ctx.beginPath();
       ctx.arc(28, y - 6, 8, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#232746";
       ctx.font = "800 15px system-ui, sans-serif";
-      ctx.fillText(a.name, 44, y);
+      ctx.fillText(row.name, 44, y);
       // bar
       const w = 240;
       const x = 120;
       ctx.fillStyle = "#edeffa";
       roundRect(ctx, x, y - 14, w, 15, 7);
       const wob = Math.sin(t * 0.35 + i * 1.7) * 0.02;
-      const p = Math.min(0.99, Math.max(0.05, a.progress + wob));
-      ctx.fillStyle = a.color;
+      const p = Math.min(0.99, Math.max(0.05, row.p + wob));
+      ctx.fillStyle = row.failed ? "#e11d48" : row.color;
       roundRect(ctx, x, y - 14, w * p, 15, 7);
-      ctx.fillStyle = "#8a90b8";
+      ctx.fillStyle = row.failed ? "#e11d48" : "#8a90b8";
       ctx.font = "700 12px system-ui, sans-serif";
-      ctx.fillText(`${Math.round(p * 100)}%`, x + w + 12, y - 2);
+      ctx.fillText(row.failed ? "FAILED" : `${Math.round(p * 100)}%`, x + w + 12, y - 2);
     });
 
-    // footer stats
-    const shiftP = Math.min(1, Math.max(0, (hour - 9) / 8));
-    const shipped = STATS.clipsShipped + Math.floor(shiftP * 268);
+    // footer stats — live
     ctx.fillStyle = "#232746";
     ctx.font = "800 16px system-ui, sans-serif";
-    ctx.fillText(`SHIPPED TODAY ${shipped.toLocaleString("en-US")}`, 20, WB_H - 18);
+    ctx.fillText(`SHIPPED TODAY ${stats.clipsShipped.toLocaleString("en-US")}`, 20, WB_H - 18);
     ctx.fillStyle = "#8a90b8";
-    ctx.fillText(`QUEUE ${STATS.renderQueue}`, 300, WB_H - 18);
-    ctx.fillText(`AVG ${STATS.avgClipSec}s`, 420, WB_H - 18);
+    ctx.fillText(`QUEUE ${stats.renderQueue}`, 300, WB_H - 18);
+    ctx.fillText(`AVG ${stats.avgClipSec}s`, 420, WB_H - 18);
     tex.needsUpdate = true;
   }
 
-  redraw(10.5, 0);
+  redraw(
+    10.5,
+    0,
+    AGENTS.map((a) => ({ name: a.name, color: a.color, p: a.progress, failed: false })),
+    { clipsShipped: 0, renderQueue: 0, avgClipSec: 42 },
+  );
   return { tex, redraw };
 }
 
