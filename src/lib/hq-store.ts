@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { STATS } from "@/lib/hq-data";
+import type { ClipJob, FloorSnapshot, FloorStats } from "@/lib/hq-jobs";
 
 export type SelectableKind = "agent" | "vehicle";
 
@@ -17,6 +19,14 @@ interface HqState {
   selection: Selection | null;
   /** increments to request a camera focus (agents/vehicles + resets) */
   focusToken: number;
+  /** latest floor jobs + stats from the active FloorSource (mock or live) */
+  jobs: ClipJob[];
+  stats: FloorStats;
+  /** "sim" = built-in simulator, "live" = VITE_FLOOR_URL producer (e.g. n8n) */
+  floorSource: "sim" | "live";
+  /** epoch ms of the last accepted snapshot */
+  floorUpdatedAt: number;
+  applyFloorSnapshot: (s: FloorSnapshot) => void;
   setHour: (h: number) => void;
   togglePlay: () => void;
   setSpeed: (s: number) => void;
@@ -35,6 +45,17 @@ export const useHqStore = create<HqState>((set, get) => ({
   autoOrbit: false,
   selection: null,
   focusToken: 0,
+  jobs: [],
+  stats: { ...STATS },
+  floorSource: "sim",
+  floorUpdatedAt: 0,
+  applyFloorSnapshot: (s) =>
+    set({
+      jobs: s.jobs,
+      stats: s.stats,
+      floorSource: s.source,
+      floorUpdatedAt: s.ts,
+    }),
   setHour: (h) => set({ hour: ((h % 24) + 24) % 24 }),
   togglePlay: () => set({ playing: !get().playing }),
   setSpeed: (s) => set({ speed: s }),

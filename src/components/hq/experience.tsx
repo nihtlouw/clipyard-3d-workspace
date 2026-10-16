@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { AdaptiveDpr, PerformanceMonitor } from "@react-three/drei";
+import { attachFloorSource, createDefaultFloorSource } from "@/lib/hq-floor";
 import { useHqStore } from "@/lib/hq-store";
 import { Agents } from "./agents";
 import { HqHud } from "./hud";
@@ -29,6 +30,9 @@ export function HqExperience() {
 
   // WebGL + canvas textures need the browser
   useEffect(() => setMounted(true), []);
+
+  // Floor feed: mock simulator by default, live polling when VITE_FLOOR_URL is set
+  useEffect(() => attachFloorSource(createDefaultFloorSource()), []);
 
   return (
     <div className="hq-stage fixed inset-0 overflow-hidden">

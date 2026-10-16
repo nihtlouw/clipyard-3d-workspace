@@ -1,0 +1,60 @@
+{
+  "ts": 1792238400000,
+  "source": "live",
+  "jobs": [
+    {
+      "jobId": "n8n_exec_10421",
+      "agentId": "akira",
+      "title": "Routing EP214 → 4 clip queues",
+      "status": "running",
+      "progress": 0.66,
+      "updatedAt": 1792238394000
+    },
+    {
+      "jobId": "n8n_exec_10418",
+      "agentId": "nova",
+      "title": "Silence-trim EP213 · 31 cuts",
+      "status": "running",
+      "progress": 0.82,
+      "updatedAt": 1792238392000
+    },
+    {
+      "jobId": "n8n_exec_10416",
+      "agentId": "hook",
+      "title": "Drafting 150 hooks · EP213",
+      "status": "done",
+      "progress": 1,
+      "updatedAt": 1792238100000
+    },
+    {
+      "jobId": "n8n_exec_10419",
+      "agentId": "lexa",
+      "title": "Karaoke captions ID/EN · EP213",
+      "status": "queued",
+      "progress": 0,
+      "updatedAt": 1792238388000
+    },
+    {
+      "jobId": "n8n_exec_10412",
+      "agentId": "pixel",
+      "title": "A/B testing 9 covers · EP212",
+      "status": "failed",
+      "progress": 0.41,
+      "updatedAt": 1792237960000
+    },
+    {
+      "jobId": "n8n_exec_10405",
+      "agentId": "bolt",
+      "title": "Render & ship 5 clips · EP212",
+      "status": "running",
+      "progress": 0.57,
+      "updatedAt": 1792238390000
+    }
+  ],
+  "stats": {
+    "clipsShipped": 1284,
+    "renderQueue": 2,
+    "avgClipSec": 41,
+    "channelsFed": 46
+  }
+}

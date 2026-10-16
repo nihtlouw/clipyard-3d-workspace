@@ -12,6 +12,7 @@ import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { AGENTS, VEHICLES, type VehicleInfo } from "@/lib/hq-data";
+import { currentJobFor } from "@/lib/hq-jobs";
 import { dayFactors, useHqStore } from "@/lib/hq-store";
 import {
   createBlobShadow,
@@ -410,17 +411,38 @@ function LiveSurfaces() {
       skyline.redraw(daylight, sunset, hour);
     }
 
-    // whiteboard: every ~2s
+    // whiteboard: every ~2s, fed from live job data (mock or n8n)
     if (a.tWb > 2) {
       a.tWb = 0;
-      whiteboard.redraw(hour, performance.now() / 1000);
+      const st = useHqStore.getState();
+      const rows = AGENTS.map((agent) => {
+        const job = currentJobFor(agent.id, st.jobs);
+        return {
+          name: agent.name,
+          color: agent.color,
+          p: job && job.status !== "queued" ? job.progress : agent.progress,
+          failed: job?.status === "failed",
+        };
+      });
+      whiteboard.redraw(hour, performance.now() / 1000, rows, {
+        clipsShipped: st.stats.clipsShipped,
+        renderQueue: st.stats.renderQueue,
+        avgClipSec: st.stats.avgClipSec,
+      });
     }
 
     // one agent screen per half-second (round robin)
     if (a.tScreen > 0.5) {
       a.tScreen = 0;
       const on = hour >= 9 && hour < 17;
-      screens[a.screenIdx].redraw(performance.now() / 1000, on);
+      const st = useHqStore.getState();
+      const agent = AGENTS[a.screenIdx];
+      const job = currentJobFor(agent.id, st.jobs);
+      screens[a.screenIdx].redraw(
+        performance.now() / 1000,
+        on,
+        job ? { status: job.status, progress: job.progress } : undefined,
+      );
       a.screenIdx = (a.screenIdx + 1) % screens.length;
     }
   });

@@ -17,7 +17,8 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { AGENTS, COMPANY, STATS, VEHICLES, type VehicleInfo } from "@/lib/hq-data";
+import { AGENTS, COMPANY, VEHICLES, type VehicleInfo } from "@/lib/hq-data";
+import { currentJobFor } from "@/lib/hq-jobs";
 import { formatHour, isOnShift, useHqStore } from "@/lib/hq-store";
 import { useAmbience } from "@/lib/hq-ambience";
 import { cn } from "@/lib/utils";
@@ -123,6 +124,7 @@ function ClockPanel() {
   const hour = useHqStore((s) => s.hour);
   const playing = useHqStore((s) => s.playing);
   const speed = useHqStore((s) => s.speed);
+  const floorSource = useHqStore((s) => s.floorSource);
   const setHour = useHqStore((s) => s.setHour);
   const togglePlay = useHqStore((s) => s.togglePlay);
   const setSpeed = useHqStore((s) => s.setSpeed);
@@ -135,7 +137,12 @@ function ClockPanel() {
         <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.14em] text-hq-muted">
           <Clock3 className="h-3.5 w-3.5" /> SIM CLOCK
         </span>
-        <Chip color={on ? "#047857" : "#6d28d9"}>{on ? "ON SHIFT" : "OFF SHIFT"}</Chip>
+        <span className="flex items-center gap-1">
+          <Chip color={floorSource === "live" ? "#047857" : "#6d28d9"}>
+            {floorSource === "live" ? "LIVE" : "SIM"}
+          </Chip>
+          <Chip color={on ? "#047857" : "#6d28d9"}>{on ? "ON SHIFT" : "OFF SHIFT"}</Chip>
+        </span>
       </div>
       <div className="mt-1 font-mono text-[30px] font-extrabold leading-none tracking-tight text-hq-text">
         {formatHour(hour)}
@@ -201,6 +208,7 @@ function CrewPanel() {
   const hour = useHqStore((s) => s.hour);
   const selection = useHqStore((s) => s.selection);
   const select = useHqStore((s) => s.select);
+  const jobs = useHqStore((s) => s.jobs);
   const on = isOnShift(hour);
 
   return (
@@ -214,6 +222,7 @@ function CrewPanel() {
       <div className="mt-2 space-y-1">
         {AGENTS.map((a) => {
           const active = selection?.kind === "agent" && selection.id === a.id;
+          const failed = currentJobFor(a.id, jobs)?.status === "failed";
           return (
             <button
               key={a.id}
@@ -240,11 +249,11 @@ function CrewPanel() {
               <span
                 className="shrink-0 rounded-full px-1.5 py-0.5 text-[8.5px] font-bold tracking-[0.1em]"
                 style={{
-                  backgroundColor: on ? "#0478571c" : "#6d28d91c",
-                  color: on ? "#047857" : "#6d28d9",
+                  backgroundColor: failed ? "#e11d481c" : on ? "#0478571c" : "#6d28d91c",
+                  color: failed ? "#e11d48" : on ? "#047857" : "#6d28d9",
                 }}
               >
-                {on ? "WORKING" : "LOUNGE"}
+                {failed ? "ERROR" : on ? "WORKING" : "LOUNGE"}
               </span>
             </button>
           );
@@ -261,6 +270,7 @@ function DetailCard() {
   const select = useHqStore((s) => s.select);
   const requestFocus = useHqStore((s) => s.requestFocus);
   const hour = useHqStore((s) => s.hour);
+  const jobs = useHqStore((s) => s.jobs);
 
   useEffect(() => {
     if (!selection) return;
@@ -326,18 +336,30 @@ function DetailCard() {
       </div>
 
       {agent && (
-        <>
+        (() => {
+          const job = currentJobFor(agent.id, jobs);
+          const taskTitle = job?.title ?? agent.task;
+          const taskP = job && job.status !== "queued" ? job.progress : agent.progress;
+          const failed = job?.status === "failed";
+          const queued = job?.status === "queued";
+          return (
+            <>
           <p className="mt-2.5 text-[11px] font-medium leading-snug text-hq-muted">{agent.tagline}</p>
           <div className="mt-2.5 rounded-xl bg-hq-line/40 p-2.5">
             <div className="flex items-center justify-between text-[9.5px] font-bold tracking-[0.1em] text-hq-muted">
               <span>CURRENT TASK</span>
-              <Chip color={agent.color}>{on ? "LIVE" : "QUEUED"}</Chip>
+              <Chip color={failed ? "#e11d48" : agent.color}>
+                {failed ? "FAILED" : queued ? "QUEUED" : on ? "LIVE" : "QUEUED"}
+              </Chip>
             </div>
-            <p className="mt-1 text-[11px] font-bold leading-snug text-hq-text">{agent.task}</p>
+            <p className="mt-1 text-[11px] font-bold leading-snug text-hq-text">{taskTitle}</p>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white">
               <div
                 className="h-full rounded-full transition-[width] duration-700"
-                style={{ width: `${Math.round(agent.progress * 100)}%`, backgroundColor: agent.color }}
+                style={{
+                  width: `${Math.round(taskP * 100)}%`,
+                  backgroundColor: failed ? "#e11d48" : agent.color,
+                }}
               />
             </div>
           </div>
@@ -348,7 +370,9 @@ function DetailCard() {
           <p className="mt-2 flex items-center gap-1.5 text-[10.5px] font-semibold text-hq-muted">
             <Car className="h-3.5 w-3.5" /> {agent.vehicle} — on the garage shelf
           </p>
-        </>
+            </>
+          );
+        })()
       )}
 
       {vehicle && (
@@ -423,22 +447,23 @@ function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; labe
 /* ---------------------------------- ticker ---------------------------------- */
 
 function TickerBar() {
+  const stats = useHqStore((s) => s.stats);
   return (
     <div className="absolute bottom-0 left-0 right-0 overflow-hidden border-t border-white/10 bg-hq-text/95 py-1.5 backdrop-blur">
       <div className="ticker-track flex w-max gap-10 whitespace-nowrap text-[10px] font-bold tracking-[0.16em] text-white/70">
         {[0, 1].map((k) => (
           <div key={k} className="flex gap-10">
             <span>
-              CLIPS SHIPPED TODAY · <b className="text-[#6ee7b7]">{STATS.clipsShipped.toLocaleString()}</b>
+              CLIPS SHIPPED TODAY · <b className="text-[#6ee7b7]">{stats.clipsShipped.toLocaleString()}</b>
             </span>
             <span>
-              RENDER QUEUE · <b className="text-[#fbbf24]">{STATS.renderQueue}</b>
+              RENDER QUEUE · <b className="text-[#fbbf24]">{stats.renderQueue}</b>
             </span>
             <span>
-              AVG CLIP · <b className="text-[#67e8f9]">{STATS.avgClipSec}s</b>
+              AVG CLIP · <b className="text-[#67e8f9]">{stats.avgClipSec}s</b>
             </span>
             <span>
-              CHANNELS FED · <b className="text-[#c4b5fd]">{STATS.channelsFed}</b>
+              CHANNELS FED · <b className="text-[#c4b5fd]">{stats.channelsFed}</b>
             </span>
             <span>
               SHIFT · <b className="text-white">{COMPANY.shift}</b>
