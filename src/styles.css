@@ -45,7 +45,7 @@
 
   /* CLIPYARD isometric studio (light diorama theme) */
   --color-hq-bg: #eef0fb;
-  --color-hq-panel: #ffffffef;
+  --color-hq-panel: rgba(255, 255, 255, 0.94);
   --color-hq-line: #dfe3f5;
   --color-hq-text: #232746;
   --color-hq-muted: #7a81a6;
