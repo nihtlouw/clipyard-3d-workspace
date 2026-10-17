@@ -161,3 +161,32 @@ agen bergaya pill referensi dengan status live: "AKIRA · ng-routing",
 
 Bukti visual: `screenshots/hq-office-*.png` (siang, malam, standup 13:00,
 rotasi 360°).
+
+---
+
+# Fase 4b — Polish interior menyeluruh
+
+Pass detailing + texture + palette di atas open-plan Fase 4:
+
+- **Tekstur**: lantai diganti papan kayu oak prosedural (grain bezier + seam
+  gelap + sambungan ujung stagger), rug lounge motif medallion radial, poster
+  baru dinding barat (bar chart "CTR +62%" & grid tim AGENTS)
+- **Two-tone wall**: band wainscot lembut (#e9e7f6) keliling ruangan — ikut
+  smart fade per sisi dindingnya, baseboard putih, trim + frame jendela putih
+  dengan sill ledge (tanaman duduk di ambang)
+- **Detailing**: pintu kayu MASUK (dinding selatan), sign CLIPYARD navy
+  (dinding utara), tirai panel sage/terracotta di jendela utara, kursi ergonomis
+  proper (kaki 5-star silver + armrest, shell warna agen), desk divider warna
+  agen, trofi emas + brankas steel di boss room, speakerphone ruang meeting,
+  kettle + bar stool pojok kopi, kitchen counter wood-top, sofa & kursi cream
+  ruang rehat, sideboard navy-top garage
+- **Cahaya malam**: pool cahaya hangat + bohlam glow di bawah 5 lampu pendant
+  dan 2 lampu berdiri — fade in otomatis mengikuti faktor malam sim
+- **Movement**: kecepatan jalan per-agen (rombongan rapat menyebar, tak
+  menggerombol di pintu), agen menghadap arah jalan saat bergerak lalu
+  menoleh ke pose tujuan saat tiba, ayunan lengan sinkron langkah, kucing
+  ekor 2-segmen + pose duduk bernapas
+
+Palet dihangatkan: navy #3a4070 lebih lembut, aksen sage/terracotta/mustard,
+krem, wainscot lembut. QA headless hijau (HUD + siang/malam/standup/360°).
+

@@ -403,10 +403,54 @@ export function createDeskLabel(name: string, color: string) {
   return toTexture(canvas);
 }
 
-/** Wall poster pair for the studio walls. */
-export function createPoster(kind: "play" | "hooks") {
+/** Wall posters for the studio walls. */
+export function createPoster(kind: "play" | "hooks" | "chart" | "team") {
   const canvas = makeCanvas(192, 256);
   const ctx = ctx2d(canvas);
+  if (kind === "chart") {
+    ctx.fillStyle = "#fdfdff";
+    ctx.fillRect(0, 0, 192, 256);
+    const bars = [42, 74, 58, 96, 120];
+    bars.forEach((h, i) => {
+      ctx.fillStyle = ["#22d3ee", "#a78bfa", "#fbbf24", "#34d399", "#f472b6"][i];
+      roundRect(ctx, 26 + i * 30, 190 - h, 22, h, 5);
+    });
+    ctx.strokeStyle = "#047857";
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(30, 150);
+    ctx.lineTo(160, 52);
+    ctx.stroke();
+    ctx.fillStyle = "#047857";
+    ctx.beginPath();
+    ctx.moveTo(160, 52);
+    ctx.lineTo(136, 48);
+    ctx.lineTo(152, 72);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#232746";
+    ctx.font = "800 22px system-ui, sans-serif";
+    ctx.fillText("CTR +62%", 30, 232);
+    return toTexture(canvas);
+  }
+  if (kind === "team") {
+    ctx.fillStyle = "#2e3192";
+    ctx.fillRect(0, 0, 192, 256);
+    const cols = ["#22d3ee", "#fbbf24", "#f472b6", "#34d399", "#a78bfa", "#fb923c"];
+    for (let r = 0; r < 3; r++) {
+      for (let c = 0; c < 4; c++) {
+        ctx.fillStyle = cols[(r * 4 + c) % cols.length];
+        ctx.beginPath();
+        ctx.arc(44 + c * 34, 74 + r * 40, 11, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "800 24px system-ui, sans-serif";
+    ctx.fillText("6 AGENTS", 42, 216);
+    return toTexture(canvas);
+  }
   if (kind === "play") {
     const g = ctx.createLinearGradient(0, 0, 0, 256);
     g.addColorStop(0, "#2e3192");
@@ -437,44 +481,87 @@ export function createPoster(kind: "play" | "hooks") {
   return toTexture(canvas);
 }
 
-/** Round lounge rug: soft rings. */
+/** Round lounge rug: striped medallion with dashed rim. */
 export function createRug() {
   const canvas = makeCanvas(256, 256);
   const ctx = ctx2d(canvas);
-  const rings = ["#f6e3dd", "#f0d4cb", "#f6e3dd", "#ebc9bf", "#f6e3dd"];
+  const rings = ["#f2dfd6", "#e9cfc2", "#f2dfd6", "#e3c2b2", "#f2dfd6"];
   rings.forEach((c, i) => {
     ctx.fillStyle = c;
     ctx.beginPath();
-    ctx.arc(128, 128, 128 - i * 26, 0, Math.PI * 2);
+    ctx.arc(128, 128, 128 - i * 24, 0, Math.PI * 2);
     ctx.fill();
   });
+  // radial dashes on the middle band
+  ctx.strokeStyle = "#c9a08e";
+  ctx.lineWidth = 6;
+  ctx.lineCap = "round";
+  for (let a = 0; a < 24; a++) {
+    const ang = (a / 24) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(128 + Math.cos(ang) * 62, 128 + Math.sin(ang) * 62);
+    ctx.lineTo(128 + Math.cos(ang) * 76, 128 + Math.sin(ang) * 76);
+    ctx.stroke();
+  }
+  // center dot
+  ctx.fillStyle = "#cf7350";
+  ctx.beginPath();
+  ctx.arc(128, 128, 14, 0, Math.PI * 2);
+  ctx.fill();
   return toTexture(canvas);
 }
 
-/** Subtle floor grid (near-white with lavender lines). */
-export function createFloorGrid() {
+/** Warm light-oak plank floor (procedural grain, staggered joints). */
+export function createFloorWood() {
   const canvas = makeCanvas(256, 256);
   const ctx = ctx2d(canvas);
-  ctx.fillStyle = "#f4f5fc";
-  ctx.fillRect(0, 0, 256, 256);
-  ctx.strokeStyle = "#e4e7f5";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(0, 0, 256, 256);
-  ctx.beginPath();
-  ctx.moveTo(128, 0);
-  ctx.lineTo(128, 256);
-  ctx.moveTo(0, 128);
-  ctx.lineTo(256, 128);
-  ctx.strokeStyle = "#eceef9";
-  ctx.stroke();
+  const rows = 6;
+  const rh = 256 / rows;
+  const tones = ["#e7d7ba", "#e1d0ae", "#e9dcc3", "#ddc9a4", "#e4d3b6", "#e6dabe"];
+  const rnd = seededRandom(88);
+  for (let r = 0; r < rows; r++) {
+    ctx.fillStyle = tones[r % tones.length];
+    ctx.fillRect(0, r * rh, 256, rh);
+    // grain streaks
+    for (let g = 0; g < 7; g++) {
+      ctx.strokeStyle = rnd() > 0.5 ? "rgba(160,125,80,0.16)" : "rgba(255,246,225,0.22)";
+      ctx.lineWidth = 1 + rnd() * 1.4;
+      const y = r * rh + 4 + rnd() * (rh - 8);
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.bezierCurveTo(80, y + (rnd() - 0.5) * 5, 170, y + (rnd() - 0.5) * 5, 256, y);
+      ctx.stroke();
+    }
+    // plank seam + staggered end joints
+    ctx.fillStyle = "rgba(120,90,55,0.28)";
+    ctx.fillRect(0, r * rh, 256, 2);
+    const joint = Math.floor(rnd() * 200) + 28;
+    ctx.fillRect(joint, r * rh, 2, rh);
+  }
   const tex = toTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(9, 6.5);
+  tex.repeat.set(5, 3.4);
   return tex;
 }
 
 /** Soft radial blob shadow. */
+/** soft radial glow sprite (night light pools / bulbs) */
+export function createGlowSprite() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d")!;
+  const grad = g.createRadialGradient(64, 64, 4, 64, 64, 62);
+  grad.addColorStop(0, "rgba(255,255,255,1)");
+  grad.addColorStop(0.4, "rgba(255,255,255,0.45)");
+  grad.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 export function createBlobShadow() {
   const canvas = makeCanvas(128, 128);
   const ctx = ctx2d(canvas);
@@ -544,6 +631,22 @@ export function createSign(text: string, accent: string, w = 256, h = 72) {
   ctx.fillStyle = "#232746";
   ctx.font = "800 28px system-ui, sans-serif";
   ctx.fillText(text, 50, h / 2 + 10);
+  return toTexture(canvas);
+}
+
+/** Dark wall sign: navy plate, white bold text, glowing accent dot. */
+export function createDarkSign(text: string, accent: string, w = 384, h = 96) {
+  const canvas = makeCanvas(w, h);
+  const ctx = ctx2d(canvas);
+  ctx.fillStyle = "#232746";
+  roundRect(ctx, 0, 0, w, h, 20);
+  ctx.fillStyle = accent;
+  ctx.beginPath();
+  ctx.arc(38, h / 2, 12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "800 40px system-ui, sans-serif";
+  ctx.fillText(text, 66, h / 2 + 14);
   return toTexture(canvas);
 }
 

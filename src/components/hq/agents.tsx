@@ -45,6 +45,8 @@ function Hoodie({ info, index }: { info: AgentInfo; index: number }) {
   const faceTex = useMemo(() => getFaceTexture(), []);
   const nameplate = useMemo(() => createNameplate(info.name, info.color), [info]);
   const phase = useMemo(() => index * 1.73, [index]);
+  // per-agent walk speed so the pack spreads out on the way to meetings
+  const speed = useMemo(() => 1.3 + ((index * 53) % 9) / 9, [index]);
   const target = useRef(new THREE.Vector3(info.desk[0], 0, info.desk[1]));
   const targetYaw = useRef(info.deskYaw);
   const walking = useRef(false);
@@ -97,11 +99,18 @@ function Hoodie({ info, index }: { info: AgentInfo; index: number }) {
 
     const before = g.position.clone();
     target.current.set(px, py, pz);
-    g.position.lerp(target.current, 1 - Math.exp(-d * 1.7));
+    g.position.lerp(target.current, 1 - Math.exp(-d * 1.7 * speed));
     walking.current = before.distanceTo(g.position) > 0.004;
 
+    // face where we're going while walking, settle into the pose yaw on arrival
+    let wantYaw = yaw;
+    if (walking.current) {
+      const dx = target.current.x - before.x;
+      const dz = target.current.z - before.z;
+      if (dx * dx + dz * dz > 1e-8) wantYaw = Math.atan2(dx, dz);
+    }
     const cur = g.rotation.y;
-    const diff = ((yaw - cur + Math.PI) % (Math.PI * 2)) - Math.PI;
+    const diff = ((wantYaw - cur + Math.PI) % (Math.PI * 2)) - Math.PI;
     g.rotation.y = cur + diff * (1 - Math.exp(-d * 2.4));
 
     const bob = Math.sin(t * 1.8 + phase) * 0.02;
@@ -125,8 +134,9 @@ function Hoodie({ info, index }: { info: AgentInfo; index: number }) {
       face.current.scale.y += (blink - face.current.scale.y) * 0.5;
     }
     const typing = on && !walking.current && !meeting ? Math.sin(t * 8.5 + phase) * 0.22 : Math.sin(t * 1.2 + phase) * 0.06;
-    if (leftArm.current) leftArm.current.rotation.x = -0.85 + typing;
-    if (rightArm.current) rightArm.current.rotation.x = -0.85 - typing;
+    const swing = walking.current ? Math.sin(t * 9 + phase) * 0.38 : 0;
+    if (leftArm.current) leftArm.current.rotation.x = -0.85 + typing + swing;
+    if (rightArm.current) rightArm.current.rotation.x = -0.85 - typing + swing;
 
     if (ring.current) {
       ring.current.opacity = (selected ? 0.9 : hover ? 0.5 : 0.18) * (on ? 1 : 0.55);
