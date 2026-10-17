@@ -18,13 +18,32 @@ function hoverCursor(e: ThreeEvent<PointerEvent>, on: boolean) {
 
 /** Standup seats around the meeting table (index → seat). */
 const MEETING_SEATS: Array<{ pos: [number, number]; yaw: number }> = [
-  { pos: [8.0, 4.72], yaw: 0 },
-  { pos: [9.35, 4.72], yaw: 0 },
-  { pos: [10.7, 4.72], yaw: 0 },
-  { pos: [8.0, 6.48], yaw: Math.PI },
-  { pos: [9.35, 6.48], yaw: Math.PI },
-  { pos: [10.7, 6.48], yaw: Math.PI },
+  { pos: [8.0, 4.62], yaw: 0 },
+  { pos: [9.35, 4.62], yaw: 0 },
+  { pos: [10.7, 4.62], yaw: 0 },
+  { pos: [8.0, 6.58], yaw: Math.PI },
+  { pos: [9.35, 6.58], yaw: Math.PI },
+  { pos: [10.7, 6.58], yaw: Math.PI },
 ];
+/** chair seat surface is at y≈0.765 — sit slightly into the cushion */
+const SEAT_Y = 0.68;
+
+/** sliding-door opening in the meeting-room glass (x range on the z=2.0 line) */
+const DOOR = { x0: 8.55, x1: 10.15 };
+const DOOR_OUT: [number, number] = [9.35, 0.95];
+
+/** does the segment a->b pass through meeting-room glass? */
+function crossesMeetingGlass(ax: number, az: number, bx: number, bz: number): boolean {
+  if (ax < 5.1 !== bx < 5.1) {
+    const zc = az + (bz - az) * ((5.1 - ax) / (bx - ax));
+    if (zc > 2.15 && zc < 9.05) return true;
+  }
+  if (az < 2.0 !== bz < 2.0) {
+    const xc = ax + (bx - ax) * ((2.0 - az) / (bz - az));
+    if (xc > 5.3 && xc < 13.4 && (xc < DOOR.x0 || xc > DOOR.x1)) return true;
+  }
+  return false;
+}
 
 function Hoodie({ info, index }: { info: AgentInfo; index: number }) {
   const group = useRef<THREE.Group>(null);
@@ -53,8 +72,6 @@ function Hoodie({ info, index }: { info: AgentInfo; index: number }) {
   const plateText = useRef("");
   const prevState = useRef("");
 
-  // seat height in the meeting room (chairs) vs floor cushions vs sofa
-  const loungeY = index >= 4 ? 0.42 : 0;
   const seatPos = MEETING_SEATS[index];
 
   useFrame((state, delta) => {
@@ -77,7 +94,7 @@ function Hoodie({ info, index }: { info: AgentInfo; index: number }) {
     if (meeting) {
       px = seatPos.pos[0];
       pz = seatPos.pos[1];
-      py = 0.28;
+      py = SEAT_Y;
       yaw = seatPos.yaw;
       statusText = "standup";
     } else if (on) {
@@ -88,7 +105,7 @@ function Hoodie({ info, index }: { info: AgentInfo; index: number }) {
       statusText = failed ? "error!" : waitingOk ? "minta OK" : job?.status === "queued" ? "nunggu tugas" : info.verb;
     } else {
       px = info.lounge[0];
-      py = loungeY;
+      py = info.loungeY;
       pz = info.lounge[1];
       yaw = info.loungeYaw;
       statusText = failed ? "ngisi token…" : "rehat";
@@ -98,7 +115,18 @@ function Hoodie({ info, index }: { info: AgentInfo; index: number }) {
     if (!g) return;
 
     const before = g.position.clone();
-    target.current.set(px, py, pz);
+    let tx = px;
+    let tz = pz;
+    if (crossesMeetingGlass(before.x, before.z, tx, tz)) {
+      tx = DOOR_OUT[0];
+      tz = DOOR_OUT[1];
+      if (Math.hypot(before.x - tx, before.z - tz) < 0.5) {
+        // at the outer door point the straight line already goes through the opening
+        tx = px;
+        tz = pz;
+      }
+    }
+    target.current.set(tx, py, tz);
     g.position.lerp(target.current, 1 - Math.exp(-d * 1.7 * speed));
     walking.current = before.distanceTo(g.position) > 0.004;
 
@@ -137,6 +165,7 @@ function Hoodie({ info, index }: { info: AgentInfo; index: number }) {
     const swing = walking.current ? Math.sin(t * 9 + phase) * 0.38 : 0;
     if (leftArm.current) leftArm.current.rotation.x = -0.85 + typing + swing;
     if (rightArm.current) rightArm.current.rotation.x = -0.85 - typing + swing;
+
 
     if (ring.current) {
       ring.current.opacity = (selected ? 0.9 : hover ? 0.5 : 0.18) * (on ? 1 : 0.55);

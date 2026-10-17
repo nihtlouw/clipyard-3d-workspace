@@ -190,3 +190,16 @@ Pass detailing + texture + palette di atas open-plan Fase 4:
 Palet dihangatkan: navy #3a4070 lebih lembut, aksen sage/terracotta/mustard,
 krem, wainscot lembut. QA headless hijau (HUD + siang/malam/standup/360°).
 
+### Perbaikan sinkron duduk (laporan user)
+
+- Kursi rapat kini dihitung dari furnitur aslinya: posisi kursi (z 4.62/6.58)
+  dan tinggi duduk SEAT_Y 0.68 — agen duduk pas di kursi, tidak lagi
+  setengah tenggelam / menempel meja
+- Dinding kaca meeting room mendapat **pintu sliding sungguhan** (bukaan
+  x 8.55–10.15) + routing agen detour lewat pintu — tidak ada lagi agen
+  menembus kaca saat berangkat standup
+- Spot lounge dirombak: 2 agen di sofa lounge, 2 di beanbag (sage/terra),
+  2 di bantal lantai — sebelumnya 5 spot jatuh DI DALAM meeting room dan
+  agen "rehat" nyemplung tembok kaca; tinggi duduk per-spot (`loungeY`)
+
+

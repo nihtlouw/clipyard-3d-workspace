@@ -22,6 +22,8 @@ export interface AgentInfo {
   deskYaw: number;
   /** world position in the lounge while off-shift (x, z) */
   lounge: [number, number];
+  /** base height of the lounge spot (sofa/beanbag seat vs floor) */
+  loungeY: number;
   /** facing yaw in the lounge */
   loungeYaw: number;
   /** short activity verb for the live nameplate (on shift) */
@@ -60,9 +62,10 @@ export const AGENTS: AgentInfo[] = [
     vehicle: "Midnight-blue sedan",
     desk: [-2.5, -4.2],
     deskYaw: 0,
-    lounge: [6.6, 2.2],
+    lounge: [-0.6, 6.95],
+    loungeY: 0.62,
     verb: "ng-routing",
-    loungeYaw: -Math.PI / 2,
+    loungeYaw: Math.PI,
   },
   {
     id: "nova",
@@ -77,9 +80,10 @@ export const AGENTS: AgentInfo[] = [
     vehicle: "Teal render van",
     desk: [-7.5, -4.2],
     deskYaw: 0,
-    lounge: [6.6, 3.2],
+    lounge: [1.0, 6.95],
+    loungeY: 0.62,
     verb: "ngedit",
-    loungeYaw: -Math.PI / 2,
+    loungeYaw: Math.PI,
   },
   {
     id: "hook",
@@ -94,9 +98,10 @@ export const AGENTS: AgentInfo[] = [
     vehicle: "Sunrise-yellow hatch",
     desk: [2.5, -4.2],
     deskYaw: 0,
-    lounge: [6.6, 4.2],
+    lounge: [2.6, 6.4],
+    loungeY: 0.42,
     verb: "cari hook",
-    loungeYaw: -Math.PI / 2,
+    loungeYaw: -0.5,
   },
   {
     id: "lexa",
@@ -112,6 +117,7 @@ export const AGENTS: AgentInfo[] = [
     desk: [-7.5, 0.6],
     deskYaw: 0,
     lounge: [4.2, 2.4],
+    loungeY: 0,
     verb: "nyusun caption",
     loungeYaw: 1.9,
   },
@@ -128,7 +134,8 @@ export const AGENTS: AgentInfo[] = [
     vehicle: "Magenta sport hatch",
     desk: [-2.5, 0.6],
     deskYaw: 0,
-    lounge: [5.2, 4.3],
+    lounge: [4.3, 4.35],
+    loungeY: 0,
     verb: "desain cover",
     loungeYaw: 1.1,
   },
@@ -145,9 +152,10 @@ export const AGENTS: AgentInfo[] = [
     vehicle: "Orange work pickup",
     desk: [2.5, 0.6],
     deskYaw: 0,
-    lounge: [6.05, 2.6],
+    lounge: [-2.5, 6.6],
+    loungeY: 0.42,
     verb: "rendering",
-    loungeYaw: 1.5,
+    loungeYaw: -2.3,
   },
 ];
 
