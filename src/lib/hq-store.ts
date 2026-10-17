@@ -1,6 +1,12 @@
 import { create } from "zustand";
 import { STATS } from "@/lib/hq-data";
-import type { ClipJob, FloorSnapshot, FloorStats } from "@/lib/hq-jobs";
+import type {
+  ApprovalDecision,
+  ApprovalRequest,
+  ClipJob,
+  FloorSnapshot,
+  FloorStats,
+} from "@/lib/hq-jobs";
 
 export type SelectableKind = "agent" | "vehicle";
 
@@ -22,11 +28,18 @@ interface HqState {
   /** latest floor jobs + stats from the active FloorSource (mock or live) */
   jobs: ClipJob[];
   stats: FloorStats;
+  /** pending human-in-the-loop approvals (filtered by local decisions) */
+  approvals: ApprovalRequest[];
+  /** decisions already sent from this browser — keeps decided ids out even
+      if a stale poll still carries them */
+  resolvedApprovals: Record<string, ApprovalDecision>;
   /** "sim" = built-in simulator, "live" = VITE_FLOOR_URL producer (e.g. n8n) */
   floorSource: "sim" | "live";
   /** epoch ms of the last accepted snapshot */
   floorUpdatedAt: number;
   applyFloorSnapshot: (s: FloorSnapshot) => void;
+  /** local bookkeeping after POSTing a decision to the Floor API */
+  resolveApproval: (id: string, decision: ApprovalDecision) => void;
   setHour: (h: number) => void;
   togglePlay: () => void;
   setSpeed: (s: number) => void;
@@ -47,15 +60,25 @@ export const useHqStore = create<HqState>((set, get) => ({
   focusToken: 0,
   jobs: [],
   stats: { ...STATS },
+  approvals: [],
+  resolvedApprovals: {},
   floorSource: "sim",
   floorUpdatedAt: 0,
-  applyFloorSnapshot: (s) =>
+  applyFloorSnapshot: (s) => {
+    const resolved = get().resolvedApprovals;
     set({
       jobs: s.jobs,
       stats: s.stats,
       floorSource: s.source,
       floorUpdatedAt: s.ts,
-    }),
+      approvals: (s.approvals ?? []).filter((a) => !resolved[a.id]),
+    });
+  },
+  resolveApproval: (id, decision) =>
+    set((state) => ({
+      resolvedApprovals: { ...state.resolvedApprovals, [id]: decision },
+      approvals: state.approvals.filter((a) => a.id !== id),
+    })),
   setHour: (h) => set({ hour: ((h % 24) + 24) % 24 }),
   togglePlay: () => set({ playing: !get().playing }),
   setSpeed: (s) => set({ speed: s }),

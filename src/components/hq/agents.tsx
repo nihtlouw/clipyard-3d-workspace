@@ -50,6 +50,7 @@ function Hoodie({ info, index }: { info: AgentInfo; index: number }) {
     const on = isOnShift(hour);
     const t = state.clock.elapsedTime;
     const jobFailed = currentJobFor(info.id, st.jobs)?.status === "failed";
+    const waitingOk = st.approvals.some((ap) => ap.agentId === info.id);
 
     target.current.set(on ? info.desk[0] : info.lounge[0], on ? 0 : loungeY, on ? info.desk[1] : info.lounge[1]);
     targetYaw.current = on ? info.deskYaw : info.loungeYaw;
@@ -98,8 +99,8 @@ function Hoodie({ info, index }: { info: AgentInfo; index: number }) {
     if (rightArm.current) rightArm.current.rotation.x = -0.85 - typing;
 
     if (ring.current) {
-      ring.current.opacity = (selected ? 0.9 : hover ? 0.5 : 0.18) * (on ? 1 : 0.5);
-      const ringColor = jobFailed ? "#e11d48" : suit;
+      ring.current.opacity = (selected ? 0.9 : hover ? 0.5 : waitingOk ? 0.6 : 0.18) * (on ? 1 : 0.5);
+      const ringColor = jobFailed ? "#e11d48" : waitingOk ? "#f59e0b" : suit;
       if (ring.current.color.getHexString() !== ringColor.slice(1)) ring.current.color.set(ringColor);
     }
 

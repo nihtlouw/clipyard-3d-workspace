@@ -1,11 +1,13 @@
-import { useEffect, useReducer, useRef, type CSSProperties } from "react";
+import { useEffect, useReducer, useRef, useState, type CSSProperties } from "react";
 import {
   Bot,
   Car,
+  Check,
   ChevronLeft,
   Clock3,
   Crosshair,
   Film,
+  Inbox,
   MapPin,
   Pause,
   Play,
@@ -38,6 +40,7 @@ export function HqHud() {
       <ClockPanel />
       <CrewPanel />
       <DetailCard />
+      <ApprovalInbox />
       <ViewToggles />
       <TickerBar />
     </div>
@@ -222,6 +225,7 @@ function CrewPanel() {
   const selection = useHqStore((s) => s.selection);
   const select = useHqStore((s) => s.select);
   const jobs = useHqStore((s) => s.jobs);
+  const approvals = useHqStore((s) => s.approvals);
   const on = isOnShift(hour);
 
   return (
@@ -236,6 +240,7 @@ function CrewPanel() {
         {AGENTS.map((a) => {
           const active = selection?.kind === "agent" && selection.id === a.id;
           const failed = currentJobFor(a.id, jobs)?.status === "failed";
+          const waiting = approvals.some((ap) => ap.agentId === a.id);
           return (
             <button
               key={a.id}
@@ -262,11 +267,17 @@ function CrewPanel() {
               <span
                 className="shrink-0 rounded-full px-1.5 py-0.5 text-[8.5px] font-bold tracking-[0.1em]"
                 style={{
-                  backgroundColor: failed ? "#e11d481c" : on ? "#0478571c" : "#6d28d91c",
-                  color: failed ? "#e11d48" : on ? "#047857" : "#6d28d9",
+                  backgroundColor: waiting
+                    ? "#b453091c"
+                    : failed
+                      ? "#e11d481c"
+                      : on
+                        ? "#0478571c"
+                        : "#6d28d91c",
+                  color: waiting ? "#b45309" : failed ? "#e11d48" : on ? "#047857" : "#6d28d9",
                 }}
               >
-                {failed ? "ERROR" : on ? "WORKING" : "LOUNGE"}
+                {waiting ? "WAITING OK" : failed ? "ERROR" : on ? "WORKING" : "LOUNGE"}
               </span>
             </button>
           );
@@ -416,6 +427,113 @@ function Stat({ label, value, small }: { label: string; value: string; small?: b
       <p className="text-[8.5px] font-bold tracking-[0.12em] text-hq-muted">{label}</p>
       <p className={cn("font-extrabold leading-tight text-hq-text", small ? "text-[12px]" : "text-[15px]")}>
         {value}
+      </p>
+    </div>
+  );
+}
+
+/* ---------------------------------- approval inbox ---------------------------------- */
+
+const AMBER = "#b45309";
+
+/** Human-in-the-loop gate: pending approvals pushed by n8n (via Floor API). */
+function ApprovalInbox() {
+  const approvals = useHqStore((s) => s.approvals);
+  const resolve = useHqStore((s) => s.resolveApproval);
+  const select = useHqStore((s) => s.select);
+  const requestFocus = useHqStore((s) => s.requestFocus);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  if (approvals.length === 0) return null;
+
+  const decide = async (a: (typeof approvals)[number], decision: "approved" | "rejected") => {
+    setBusy(a.id);
+    setError(null);
+    const finish = () => {
+      resolve(a.id, decision);
+      select({ kind: "agent", id: a.agentId });
+      requestFocus();
+    };
+    // SIM mode: the mock has no decision endpoint — decide locally.
+    if (useHqStore.getState().floorSource === "sim") {
+      finish();
+      setBusy(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/approvals/${encodeURIComponent(a.id)}/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision }),
+      });
+      // 404 = already decided elsewhere (or gone) — still clean the inbox
+      if (res.status === 404) {
+        finish();
+        return;
+      }
+      if (!res.ok) throw new Error(`decision failed (${res.status})`);
+      finish();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "gagal mengirim keputusan");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="pointer-events-auto absolute bottom-[3.4rem] right-3 w-[228px] rounded-2xl border border-[#f0d9a0] bg-[#fff8ecf2] p-3 shadow-[0_18px_40px_-20px_rgba(180,83,9,0.5)] backdrop-blur-xl sm:right-5 sm:w-[248px]">
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.14em]" style={{ color: AMBER }}>
+          <Inbox className="h-3.5 w-3.5" /> APPROVAL INBOX
+        </span>
+        <span
+          className="flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-extrabold text-white"
+          style={{ backgroundColor: AMBER }}
+        >
+          {approvals.length}
+        </span>
+      </div>
+
+      <div className="mt-2 space-y-2">
+        {approvals.map((a) => {
+          const agent = AGENTS.find((x) => x.id === a.agentId);
+          const isBusy = busy === a.id;
+          return (
+            <div key={a.id} className="rounded-xl border border-[#f0d9a0] bg-white/85 p-2.5">
+              <div className="flex items-center gap-2">
+                <span
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold text-white"
+                  style={{ backgroundColor: agent?.color }}
+                >
+                  {agent?.name[0]}
+                </span>
+                <p className="min-w-0 flex-1 truncate text-[11.5px] font-extrabold text-hq-text">{a.title}</p>
+              </div>
+              {a.detail && <p className="mt-1 text-[10px] font-medium leading-snug text-hq-muted">{a.detail}</p>}
+              <div className="mt-2 flex items-center gap-1.5">
+                <button
+                  disabled={isBusy}
+                  onClick={() => decide(a, "approved")}
+                  className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#047857] py-1.5 text-[10.5px] font-bold text-white transition-transform hover:scale-[1.03] disabled:opacity-50"
+                >
+                  <Check className="h-3.5 w-3.5" /> Setujui
+                </button>
+                <button
+                  disabled={isBusy}
+                  onClick={() => decide(a, "rejected")}
+                  className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#e11d48] py-1.5 text-[10.5px] font-bold text-white transition-transform hover:scale-[1.03] disabled:opacity-50"
+                >
+                  <X className="h-3.5 w-3.5" /> Tolak
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {error && <p className="mt-1.5 text-[10px] font-semibold text-[#e11d48]">{error}</p>}
+      <p className="mt-1 text-[9px] font-medium leading-snug text-hq-muted">
+        Dibuka oleh pipeline (n8n) via Floor API — keputusan langsung melanjutkan workflow.
       </p>
     </div>
   );

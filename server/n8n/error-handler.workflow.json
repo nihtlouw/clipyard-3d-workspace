@@ -1,0 +1,66 @@
+{
+  "name": "CLIPYARD · Error handler global",
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "id": "note-usage",
+      "name": "Sticky Note — cara pakai",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-880, -360],
+      "parameters": {
+        "width": 620,
+        "height": 460,
+        "content": "## CLIPYARD · Error workflow global\nSetiap workflow stage (HOOK/NOVA/LEXA/PIXEL/BOLT) → **Settings → Error Workflow = workflow ini**. Saat eksekusi mana pun crash, job agen terkait otomatis `failed` → hoodie dapat ring merah + chip ERROR di diorama (insiden terlihat, bukan tersembunyi di log).\n\n**Ganti:**\n1. `http://127.0.0.1:8787` → URL Floor API.\n2. `clipyard-dev-token` → token kamu.\n3. Pemetaan workflow → agentId di node Code (tambahkan sesuai workflow kamu).\n\nPayload error n8n berisi `workflow.name`, `execution.id`, `execution.error.message`."
+      }
+    },
+    {
+      "id": "error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [-560, 0],
+      "parameters": {}
+    },
+    {
+      "id": "map-agent",
+      "name": "Map workflow → agent + jobId",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-300, 0],
+      "parameters": {
+        "jsCode": "// Error Trigger payload: { workflow, execution, url } — job id pattern\n// di stage templates: <agent>_<episode> (mis. hook_EP302)\nconst wf = $input.first().json.workflow?.name ?? '';\nconst err = $input.first().json.execution?.error?.message ?? 'unknown error';\nconst map = [\n  ['HOOK stage', 'hook'],\n  ['Approval Gate', 'nova'],\n  ['LEXA', 'lexa'],\n  ['PIXEL', 'pixel'],\n  ['BOLT', 'bolt'],\n  ['AKIRA', 'akira'],\n];\nconst hit = map.find(([needle]) => wf.toLowerCase().includes(needle.toLowerCase()));\nconst agentId = hit?.[1] ?? 'akira';\n// ekstrak episode dari pesan error bila ada, fallback timestamp\nconst m = err.match(/EP(\\d+)/i);\nconst episode = m ? m[1] : String(Date.now() % 100000);\nreturn [{ json: { agentId, jobId: `${agentId}_EP${episode}`, message: err.slice(0, 120) } }];"
+      }
+    },
+    {
+      "id": "push-failed",
+      "name": "Floor API: mark FAILED",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-40, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8787/api/n8n/job",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Clipyard-Token", "value": "clipyard-dev-token" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobId: $json.jobId, agentId: $json.agentId, status: 'failed', progress: 0, title: 'Workflow error — ' + $json.message }) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [[{ "node": "Map workflow → agent + jobId", "type": "main", "index": 0 }]]
+    },
+    "Map workflow → agent + jobId": {
+      "main": [[{ "node": "Floor API: mark FAILED", "type": "main", "index": 0 }]]
+    }
+  }
+}

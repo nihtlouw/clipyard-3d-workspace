@@ -12,7 +12,13 @@
  */
 import type { AgentId } from "@/lib/hq-data";
 import { STATS } from "@/lib/hq-data";
-import { sanitizeSnapshot, type ClipJob, type FloorSnapshot, type FloorStats } from "@/lib/hq-jobs";
+import {
+  sanitizeSnapshot,
+  type ApprovalRequest,
+  type ClipJob,
+  type FloorSnapshot,
+  type FloorStats,
+} from "@/lib/hq-jobs";
 import { useHqStore } from "@/lib/hq-store";
 
 export interface FloorSource {
@@ -124,6 +130,32 @@ function createMockSource(): FloorSource {
     channelsFed: STATS.channelsFed,
   };
 
+  const approvals: ApprovalRequest[] = [];
+  const APPROVAL_TTL_MS = 90_000;
+
+  function maybeSpawnApproval(a: MockAgentState, now: number) {
+    // demo the human-in-the-loop inbox occasionally, even without n8n
+    if ((a.agentId === "pixel" || a.agentId === "bolt") && Math.random() > 0.45) {
+      const id = `sim-approval-${a.agentId}-${a.episode}`;
+      if (!approvals.some((x) => x.id === id)) {
+        approvals.push({
+          id,
+          agentId: a.agentId,
+          title:
+            a.agentId === "pixel"
+              ? `Pilih cover final · EP${a.episode} (3 kandidat)`
+              : `Setujui publish ${a.clips} clips · EP${a.episode}`,
+          detail:
+            a.agentId === "pixel"
+              ? "Thumbnail sudah di-A/B test — pilih varian dengan CTR terbaik."
+              : "Render selesai. Setujui untuk publish ke channel.",
+          jobId: a.job.jobId,
+          requestedAt: now,
+        });
+      }
+    }
+  }
+
   let timer: number | null = null;
   let stopped = true;
   let last = 0;
@@ -151,10 +183,11 @@ function createMockSource(): FloorSource {
           if (p >= 1) {
             a.job.status = "done";
             a.job.progress = 1;
-            stats.clipsShipped += a.clips;
+            if (a.agentId !== "bolt") stats.clipsShipped += a.clips;
             stats.renderQueue = Math.max(0, stats.renderQueue - (a.agentId === "bolt" ? 1 : 0));
             if (a.agentId === "akira" && Math.random() > 0.75) stats.channelsFed += 1;
             stats.avgClipSec = Math.round(38 + Math.random() * 10);
+            maybeSpawnApproval(a, now);
           } else {
             // occasional mid-run failure (simulates render/LLM hiccups)
             if (Math.random() < 0.0016 && p > 0.25) {
@@ -179,12 +212,18 @@ function createMockSource(): FloorSource {
       }
     }
 
-    if (dirty) {
+    // drop approvals that waited too long (simulates a reviewer cleaning up)
+    for (let i = approvals.length - 1; i >= 0; i--) {
+      if (now - approvals[i].requestedAt > APPROVAL_TTL_MS) approvals.splice(i, 1);
+    }
+
+    if (dirty || approvals.length) {
       onSnapshot?.({
         ts: now,
         source: "sim",
         jobs: agents.map((a) => ({ ...a.job })),
         stats: { ...stats },
+        approvals: approvals.map((a) => ({ ...a })),
       });
     }
   }

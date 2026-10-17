@@ -109,3 +109,23 @@ Uji loop end-to-end tanpa n8n: jalankan Floor API + `npm run dev`, lalu
 `curl -X POST localhost:8080/api/n8n/job -H 'X-Clipyard-Token: clipyard-dev-token' \
  -d '{"jobId":"hook_EP302","agentId":"hook","status":"running","progress":0.1,...}'`
 — dalam ±2 dtk kartu agen/whiteboard menampilkan job itu.
+
+
+---
+
+# 📍 Papan status integrasi
+
+| Blok | Status |
+|---|---|
+| Kontrak `FloorSnapshot` v1.1 (+ approvals) | ✅ |
+| Floor API (jobs/stats/approvals/callback/persist) | ✅ |
+| Approval Inbox di dalam diorama (Setujui/Tolak) | ✅ |
+| Simulator mock + mode LIVE + badge kesehatan | ✅ |
+| Template n8n: intake AKIRA, HOOK, approval gate, BOLT, error handler | ✅ (import-ready, kredensial ditandai) |
+| Demo loop end-to-end tanpa n8n (`server/demo-episode.sh`) | ✅ |
+| Tutorial lengkap | ✅ `server/n8n/TUTORIAL.md` |
+
+⏸ **Menunggu inputmu (opsional, infrastruktur sudah berdiri):** API key LLM
+untuk node HOOK, render-API key untuk BOLT, OAuth YouTube untuk upload, token
+Telegram/Slack bila mau notifikasi keluar diorama, dan `CLIPYARD_FLOOR_TOKEN`
+produksi + URL publik Floor API. Semua ditandai "ISI KREDENSIAL" di template.

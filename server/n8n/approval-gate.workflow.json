@@ -1,0 +1,184 @@
+{
+  "name": "CLIPYARD · Approval Gate (NOVA pattern)",
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "id": "note-usage",
+      "name": "Sticky Note — cara pakai",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-900, -420],
+      "parameters": {
+        "width": 640,
+        "height": 620,
+        "content": "## CLIPYARD · Approval Gate (pola NOVA)\nHuman-in-the-loop di tengah pipeline: kerjakan → buka gerbang approval → **workflow pause di node Wait** → manusia klik Setujui/Tolak di **Approval Inbox diorama** → Floor API POST callback ke `Resume URL` → workflow lanjut (atau berhenti bila ditolak).\n\n**Yang wajib diganti:**\n1. Semua `http://127.0.0.1:8787` → URL Floor API yang bisa dijangkau n8n.\n2. `clipyard-dev-token` → `CLIPYARD_FLOOR_TOKEN` kamu.\n3. Node `Wait for decision` → salin nilai `Webhook Id` ke field `callbackUrl` saat membuka approval (lihat catatan di node tersebut).\n\n**Alur callback:** keputusan dari diorama → `POST /api/approvals/{id}/decision` → Floor API POST `{approvalId, decision, note}` ke callbackUrl → node Wait resume → cabang `If decision = approved`.\n\nTanpa diorama pun bisa: balas manual `POST /api/approvals/{id}/decision` dengan `{\"decision\":\"approved\"}`."
+      }
+    },
+    {
+      "id": "webhook-in",
+      "name": "Webhook: nova stage",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-560, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clipyard/nova",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "clipyard-nova-stage"
+    },
+    {
+      "id": "job-running",
+      "name": "Job → RUNNING",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-300, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8787/api/n8n/job",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Clipyard-Token", "value": "clipyard-dev-token" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobId: 'nova_' + $json.body.episodeId, agentId: 'nova', title: 'Silence-trim ' + ($json.body.title ?? 'episode'), status: 'running', progress: 0.1 }) }}"
+      }
+    },
+    {
+      "id": "render-work",
+      "name": "Render (ffmpeg / render API)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [-40, 0],
+      "parameters": {
+        "note": "Ganti node ini dengan pekerjaan asli: Execute Command (ffmpeg) di self-host, atau HTTP Request ke Creatomate/Shotstack/JSON2Video. Update progress berkala via POST /api/n8n/job."
+      }
+    },
+    {
+      "id": "open-approval",
+      "name": "Open approval gate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8787/api/n8n/approvals",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Clipyard-Token", "value": "clipyard-dev-token" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ id: 'approval_nova_' + $('Webhook: nova stage').item.json.body.episodeId, agentId: 'nova', title: 'Setujui hasil cut · EP' + $('Webhook: nova stage').item.json.body.episodeId, detail: 'Hasil trim sudah siap — lanjut ke caption & render?', jobId: 'nova_' + $('Webhook: nova stage').item.json.body.episodeId, callbackUrl: 'https://GANTI-DENGAN-WEBHOOK-RESUME-URL' }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "wait-decision",
+      "name": "Wait for decision",
+      "type": "n8n-nodes-base.waitHookTrigger",
+      "typeVersion": 1.1,
+      "position": [480, 0],
+      "webhookId": "clipyard-nova-approval-resume",
+      "parameters": {
+        "options": {},
+        "note": "Resume URL-nya = webhook instans n8n untuk node ini. Salin URL itu ke callbackUrl di node 'Open approval gate'. Di editor: klik node → tab Webhook → Production URL."
+      }
+    },
+    {
+      "id": "is-approved",
+      "name": "Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [740, 0],
+      "parameters": {
+        "options": {},
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "cond-approved",
+              "leftValue": "={{ $json.body.decision }}",
+              "rightValue": "approved",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "job-continue",
+      "name": "Job → CONTINUE (approved)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, -100],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8787/api/n8n/job",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Clipyard-Token", "value": "clipyard-dev-token" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobId: 'nova_' + $('Webhook: nova stage').item.json.body.episodeId, agentId: 'nova', status: 'running', progress: 0.9, title: 'Approved — lanjut captioning' }) }}"
+      }
+    },
+    {
+      "id": "job-rejected",
+      "name": "Job → REWORK (rejected)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 100],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8787/api/n8n/job",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Clipyard-Token", "value": "clipyard-dev-token" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobId: 'nova_' + $('Webhook: nova stage').item.json.body.episodeId, agentId: 'nova', status: 'failed', progress: 0.8, title: 'Rejected' + ($json.body.note ? ': ' + $json.body.note : ' — rework diperlukan') }) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook: nova stage": {
+      "main": [[{ "node": "Job → RUNNING", "type": "main", "index": 0 }]]
+    },
+    "Job → RUNNING": {
+      "main": [[{ "node": "Render (ffmpeg / render API)", "type": "main", "index": 0 }]]
+    },
+    "Render (ffmpeg / render API)": {
+      "main": [[{ "node": "Open approval gate", "type": "main", "index": 0 }]]
+    },
+    "Open approval gate": {
+      "main": [[{ "node": "Wait for decision", "type": "main", "index": 0 }]]
+    },
+    "Wait for decision": {
+      "main": [[{ "node": "Approved?", "type": "main", "index": 0 }]]
+    },
+    "Approved?": {
+      "main": [
+        [{ "node": "Job → CONTINUE (approved)", "type": "main", "index": 0 }],
+        [{ "node": "Job → REWORK (rejected)", "type": "main", "index": 0 }]
+      ]
+    }
+  }
+}
