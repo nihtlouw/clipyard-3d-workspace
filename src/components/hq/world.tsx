@@ -152,13 +152,16 @@ function useShellGeometries() {
 
     // meeting room glass + frames (+ door handles)
     const glass = merge([
-      boxAt(8.1, 4.9, 0.06, 9.35, 2.5, 2.0),
+      // front wall split into two panes with a real sliding-door opening (x 8.55-10.15)
+      boxAt(3.25, 4.9, 0.06, 6.925, 2.5, 2.0),
+      boxAt(3.25, 4.9, 0.06, 11.775, 2.5, 2.0),
+      boxAt(1.6, 2.0, 0.06, 9.35, 3.95, 2.0),
       boxAt(0.06, 4.9, 6.9, 5.1, 2.5, 5.6),
     ]);
     const glassFrame = merge([
       boxAt(8.5, 0.18, 0.2, 9.35, 5.02, 2.0),
       boxAt(8.5, 0.3, 0.2, 9.35, 0.06, 2.0),
-      ...[5.15, 9.35, 13.55].map((x) => boxAt(0.18, 5.1, 0.2, x, 2.55, 2.0)),
+      ...[5.15, 8.55, 10.15, 13.55].map((x) => boxAt(0.18, 5.1, 0.2, x, 2.55, 2.0)),
       boxAt(0.2, 0.18, 7.3, 5.1, 5.02, 5.6),
       boxAt(0.2, 0.3, 7.3, 5.1, 0.06, 5.6),
       ...[2.15, 5.6, 9.05].map((z) => boxAt(0.2, 5.1, 0.18, 5.1, 2.55, z)),
