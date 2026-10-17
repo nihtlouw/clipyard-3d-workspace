@@ -83,16 +83,16 @@ function FloorBadge() {
 function TopBar() {
   return (
     <div className="pointer-events-none absolute left-3 top-3 flex items-start gap-2">
-      <div className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-hq-line bg-hq-panel px-3.5 py-2.5 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.45)] backdrop-blur-xl">
-        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#2e3192] via-[#4f46ba] to-[#7c3aed] shadow-[0_8px_18px_-6px_rgba(46,49,146,0.6)]">
+      <div className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-[#232746]/8 bg-[#ffffff]/80 px-3.5 py-2.5 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl transition hover:border-[#232746]/15 hover:bg-[#ffffff]/95">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#2e3192] via-[#4f46ba] to-[#7c3aed] shadow-[0_8px_18px_-6px_rgba(46,49,146,0.5)]">
           <Zap className="h-5 w-5 text-white" strokeWidth={2.6} />
         </span>
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-[15px] font-extrabold tracking-tight text-hq-text">Kantor CLIPYARD HQ</span>
+            <span className="text-[15px] font-extrabold tracking-tight text-[#232746]">Kantor CLIPYARD HQ</span>
             <FloorBadge />
           </div>
-          <p className="text-[10.5px] font-semibold text-hq-muted">AWAN7 Studio · 6 agen aktif</p>
+          <p className="text-[10.5px] font-semibold text-[#7a81a6]">AWAN7 Studio · 6 agen aktif</p>
         </div>
       </div>
       <div className="pointer-events-auto flex items-center gap-2">

@@ -17,5 +17,10 @@ export const Route = createFileRoute("/hq")({
 });
 
 function HqPage() {
-  return <HqExperience />;
+  return (
+    <>
+      <div className="fixed inset-0 z-0 bg-gradient-to-b from-[#eef0fb] via-[#e9ebfa] to-[#e4e7f8]" />
+      <HqExperience />
+    </>
+  );
 }

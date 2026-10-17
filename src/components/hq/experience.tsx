@@ -26,6 +26,7 @@ function Scene() {
 export function HqExperience() {
   const [mounted, setMounted] = useState(false);
   const [degraded, setDegraded] = useState(false);
+  const [ready, setReady] = useState(false);
   const select = useHqStore((s) => s.select);
 
   // WebGL + canvas textures need the browser
@@ -36,6 +37,8 @@ export function HqExperience() {
 
   return (
     <div className="hq-stage fixed inset-0 overflow-hidden">
+      {/* Subtle background gradient overlay */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-[#eef0fb]/30 via-transparent to-[#e4e7f8]/40" />
       {mounted && (
         <Canvas
           orthographic
@@ -43,6 +46,7 @@ export function HqExperience() {
           gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
           camera={{ position: [21, 18, 21], zoom: 30, near: 1, far: 160 }}
           onPointerMissed={() => select(null)}
+          onCreated={() => setReady(true)}
         >
           <PerformanceMonitor
             onDecline={() => setDegraded(true)}
