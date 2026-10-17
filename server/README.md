@@ -104,6 +104,8 @@ selama Floor API berjalan. Badge di panel jam: `LIVE` (sehat) / `LIVE·STALE`
 | POST | `/api/n8n/job` | token | Upsert 1 job (partial ok: `jobId`+`agentId` wajib) |
 | POST | `/api/n8n/stats` | token | Merge sebagian `{clipsShipped,renderQueue,avgClipSec,channelsFed}` |
 | POST | `/api/n8n/reset` | token | Reseed state demo |
+| POST | `/api/n8n/approvals` | token | Buka gerbang approval (human-in-the-loop), `callbackUrl` opsional |
+| POST | `/api/approvals/:id/decision` | — (by design) | Keputusan manusia dari Approval Inbox diorama → callback ke n8n |
 
 Auth: header `X-Clipyard-Token` (atau `?token=`). CORS terbuka (`*`) supaya
 n8n cloud bisa mendorong; kunci token di produksi.
@@ -146,3 +148,37 @@ LLM: hubungkan langsung `Job → RUNNING` ke `Job → DONE`.
    monitor merah; otomatis bersih saat job berikutnya masuk).
 4. **HTTP Request** `POST /api/n8n/stats` saat BOLT mem-publish (naikkan
    `clipsShipped`, sesuaikan `renderQueue`).
+
+
+---
+
+# Fase 3 — Approval gate (human-in-the-loop di dalam diorama)
+
+```bash
+# n8n membuka gerbang (token)
+curl -X POST http://localhost:8787/api/n8n/approvals \
+  -H 'X-Clipyard-Token: clipyard-dev-token' -H 'Content-Type: application/json' \
+  -d '{"id":"approval_nova_EP302","agentId":"nova","title":"Setujui hasil cut · EP302",
+       "detail":"24 cut — lanjut?","jobId":"nova_EP302",
+       "callbackUrl":"https://<n8n>/webhook/clipyard/..."}'
+
+# manusia klik Setujui/Tolak di Approval Inbox diorama (atau curl):
+curl -X POST http://localhost:8787/api/approvals/approval_nova_EP302/decision \
+  -H 'Content-Type: application/json' -d '{"decision":"approved","note":"gas"}'
+# → Floor API POST {approvalId, decision, note, jobId} ke callbackUrl (5 dtk timeout)
+#   → node Wait n8n resume
+```
+
+Catatan:
+
+- Snapshot `/api/floor` **tidak pernah** menyertakan `callbackUrl` (internal).
+- Keputusan tercatat di log server (bounded 100 entri terakhir).
+- Endpoint decision sengaja tanpa token supaya bisa dipanggil dari browser
+  diorama (same-origin via proxy); dia hanya memengaruhi approval yang
+  pending. Di lingkungan hostil, taruh di belakang auth tambahan.
+- Job yang bergerak lagi (`status != queued`) otomatis membersihkan approval
+  pending dengan `jobId` yang sama.
+- Persistensi opsional: `CLIPYARD_STATE_FILE=/path/state.json` — jobs + stats
+  + approval pending ditulis debounce 1,5 dtk dan dipulihkan saat boot.
+- Demo end-to-end tanpa n8n: `bash server/demo-episode.sh` (berhenti di
+  gerbang approval — klik Setujui di diorama).

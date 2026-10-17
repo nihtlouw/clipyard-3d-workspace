@@ -109,3 +109,84 @@ Uji loop end-to-end tanpa n8n: jalankan Floor API + `npm run dev`, lalu
 `curl -X POST localhost:8080/api/n8n/job -H 'X-Clipyard-Token: clipyard-dev-token' \
  -d '{"jobId":"hook_EP302","agentId":"hook","status":"running","progress":0.1,...}'`
 — dalam ±2 dtk kartu agen/whiteboard menampilkan job itu.
+
+
+---
+
+# 📍 Papan status integrasi
+
+| Blok | Status |
+|---|---|
+| Kontrak `FloorSnapshot` v1.1 (+ approvals) | ✅ |
+| Floor API (jobs/stats/approvals/callback/persist) | ✅ |
+| Approval Inbox di dalam diorama (Setujui/Tolak) | ✅ |
+| Simulator mock + mode LIVE + badge kesehatan | ✅ |
+| Template n8n: intake AKIRA, HOOK, approval gate, BOLT, error handler | ✅ (import-ready, kredensial ditandai) |
+| Demo loop end-to-end tanpa n8n (`server/demo-episode.sh`) | ✅ |
+| Tutorial lengkap | ✅ `server/n8n/TUTORIAL.md` |
+
+⏸ **Menunggu inputmu (opsional, infrastruktur sudah berdiri):** API key LLM
+untuk node HOOK, render-API key untuk BOLT, OAuth YouTube untuk upload, token
+Telegram/Slack bila mau notifikasi keluar diorama, dan `CLIPYARD_FLOOR_TOKEN`
+produksi + URL publik Floor API. Semua ditandai "ISI KREDENSIAL" di template.
+
+
+---
+
+# Fase 4 — Open-plan HQ ala dashboard (referensi baru)
+
+Diorama dirombak jadi kantor open-plan penuh mengikuti referensi
+"Kantor Virtual HQ": ruangan 28×19 m 4 tembok dengan **smart fade** — tembok
+yang menghadang kamera menghilang otomatis (putar 360° bebas), zona baru:
+
+- **Meeting room** (kaca + meja besar + TV live dengan jam sim) — standup
+  harian otomatis jam 13:00, seluruh crew pindah ke kursi rapat
+- **Boss room** (kaca + meja eksekutif + rak trofi emas)
+- **Ruang rehat** (sofa, bantal lantai, mesin vending KOPI 24/7) — tujuan
+  crew di luar shift & saat "ngisi token" (job gagal)
+- **Pojok kopi** (counter + mesin kopi + kettle), **Render nest** (2 rak
+  server dengan LED berkedip), rak buku pelangi, **CREW GARAGE** pindah ke
+  dinding selatan, dan **kucing kantor** yang jalan sendiri 🐈
+
+HUD ala dashboard: **aktivitas langsung** (feed live + filter per agen),
+**stats grid** (JAM WIB, token keluar/diproses, rapat berikutnya, aksi, sesi
+aktif), **backlog panel** (deadline dekat / nunggu owner / ide), **6 agent
+cards** bawah (status KERJA/RAPAT/REHAT/WAITING OK/ERROR + tugas + tok/ctx),
+kontrol **Otomatis/Terang/Gelap** (override pencahayaan), Label, Auto-sway,
+**Sudut awal** (reset kamera), **Layar penuh** (tombol / tombol F).
+
+Kamera kini orbit penuh 360° (pitch & zoom tetap dikunci enak). Nameplate
+agen bergaya pill referensi dengan status live: "AKIRA · ng-routing",
+"PIXEL · minta OK", "NOVA · nunggu tugas", "BOLT · rehat".
+
+Bukti visual: `screenshots/hq-office-*.png` (siang, malam, standup 13:00,
+rotasi 360°).
+
+---
+
+# Fase 4b — Polish interior menyeluruh
+
+Pass detailing + texture + palette di atas open-plan Fase 4:
+
+- **Tekstur**: lantai diganti papan kayu oak prosedural (grain bezier + seam
+  gelap + sambungan ujung stagger), rug lounge motif medallion radial, poster
+  baru dinding barat (bar chart "CTR +62%" & grid tim AGENTS)
+- **Two-tone wall**: band wainscot lembut (#e9e7f6) keliling ruangan — ikut
+  smart fade per sisi dindingnya, baseboard putih, trim + frame jendela putih
+  dengan sill ledge (tanaman duduk di ambang)
+- **Detailing**: pintu kayu MASUK (dinding selatan), sign CLIPYARD navy
+  (dinding utara), tirai panel sage/terracotta di jendela utara, kursi ergonomis
+  proper (kaki 5-star silver + armrest, shell warna agen), desk divider warna
+  agen, trofi emas + brankas steel di boss room, speakerphone ruang meeting,
+  kettle + bar stool pojok kopi, kitchen counter wood-top, sofa & kursi cream
+  ruang rehat, sideboard navy-top garage
+- **Cahaya malam**: pool cahaya hangat + bohlam glow di bawah 5 lampu pendant
+  dan 2 lampu berdiri — fade in otomatis mengikuti faktor malam sim
+- **Movement**: kecepatan jalan per-agen (rombongan rapat menyebar, tak
+  menggerombol di pintu), agen menghadap arah jalan saat bergerak lalu
+  menoleh ke pose tujuan saat tiba, ayunan lengan sinkron langkah, kucing
+  ekor 2-segmen + pose duduk bernapas
+
+Palet dihangatkan: navy #3a4070 lebih lembut, aksen sage/terracotta/mustard,
+krem, wainscot lembut. QA headless hijau (HUD + siang/malam/standup/360°).
+

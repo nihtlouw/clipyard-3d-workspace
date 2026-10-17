@@ -1,0 +1,91 @@
+{
+  "name": "CLIPYARD · AKIRA intake (fan-out 6 agen)",
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "id": "note-usage",
+      "name": "Sticky Note — cara pakai",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-880, -380],
+      "parameters": {
+        "width": 560,
+        "height": 480,
+        "content": "## CLIPYARD · AKIRA intake\nEpisode baru masuk → buat **6 job `queued`** (satu per agen) → terbitkan snapshot pertama di diorama (antrian terlihat) → trigger workflow stage pertama (HOOK).\n\n**Ganti:**\n1. `http://127.0.0.1:8787` → URL Floor API.\n2. `clipyard-dev-token` → token kamu.\n3. Trigger sesuai sumber episode: Google Drive Trigger / Schedule + RSS / Form. Di template ini pakai webhook generik agar mudah dites dengan curl."
+      }
+    },
+    {
+      "id": "webhook-in",
+      "name": "Webhook: new episode",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-560, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clipyard/episode",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "clipyard-akira-intake"
+    },
+    {
+      "id": "make-jobs",
+      "name": "Build 6 queued jobs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-300, 0],
+      "parameters": {
+        "jsCode": "const ep = $input.first().json.body;\nconst episodeId = ep.episodeId ?? Math.floor(Math.random() * 900) + 100;\nconst title = ep.title ?? 'Untitled episode';\nconst agents = [\n  ['akira', `Routing → 4 clip queues · EP${episodeId}`],\n  ['nova', `Silence-trim · EP${episodeId}`],\n  ['hook', `Drafting hooks · EP${episodeId}`],\n  ['lexa', `Karaoke captions ID/EN · EP${episodeId}`],\n  ['pixel', `A/B testing covers · EP${episodeId}`],\n  ['bolt', `Render & ship · EP${episodeId}`],\n];\nreturn agents.map(([agentId, jobTitle]) => ({\n  json: { episodeId, title, agentId, jobTitle, queuedAt: Date.now() },\n}));"
+      }
+    },
+    {
+      "id": "push-queued",
+      "name": "Floor API: queue jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-40, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8787/api/n8n/job",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Clipyard-Token", "value": "clipyard-dev-token" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobId: $json.agentId + '_EP' + $json.episodeId, agentId: $json.agentId, title: $json.jobTitle, status: 'queued', progress: 0 }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "trigger-hook",
+      "name": "Trigger HOOK stage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5678/webhook/clipyard/hook",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ episodeId: $json.episodeId, title: $json.title, transcript: $json.transcript ?? '' }) }}",
+        "options": {}
+      },
+      "notes": "URL webhook workflow HOOK (lihat hook-stage.workflow.json). Ambil transcript dari metadata episode bila ada."
+    }
+  ],
+  "connections": {
+    "Webhook: new episode": {
+      "main": [[{ "node": "Build 6 queued jobs", "type": "main", "index": 0 }]]
+    },
+    "Build 6 queued jobs": {
+      "main": [[{ "node": "Floor API: queue jobs", "type": "main", "index": 0 }]]
+    },
+    "Floor API: queue jobs": {
+      "main": [[{ "node": "Trigger HOOK stage", "type": "main", "index": 0 }]]
+    }
+  }
+}

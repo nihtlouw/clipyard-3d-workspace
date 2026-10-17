@@ -1,0 +1,178 @@
+{
+  "name": "CLIPYARD · BOLT ship (render → publish → stats)",
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "id": "note-usage",
+      "name": "Sticky Note — cara pakai",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-920, -420],
+      "parameters": {
+        "width": 660,
+        "height": 560,
+        "content": "## CLIPYARD · BOLT ship (skeleton)\nTahap terakhir: render final → upload → **push stats** (ticker diorama naik).\n\n**Yang perlu diisi (semua saklar opsional):**\n1. `Render API` — pilih satu: Creatomate (`https://api.creatomate.com/v1/renders`), Shotstack (`https://api.shotstack.io/edit/stage/render`), JSON2Video. Isi kredensial di node HTTP.\n2. `Wait render` — sesuaikan polling (template: 20 dtk, cek `status`).\n3. `YouTube upload` — node YouTube bawaan n8n + OAuth2 credential (upload). Alternatif: TikTok/IG via HTTP node.\n4. Semua `http://127.0.0.1:8787` + token → URL/token Floor API kamu.\n\nTanpa render API pun template tetap berguna untuk menguji alur status + stats (node render bisa diganti Set/NoOp sementara)."
+      }
+    },
+    {
+      "id": "webhook-in",
+      "name": "Webhook: bolt stage",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-560, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clipyard/bolt",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "clipyard-bolt-stage"
+    },
+    {
+      "id": "job-running",
+      "name": "Job → RUNNING",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-300, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8787/api/n8n/job",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Clipyard-Token", "value": "clipyard-dev-token" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobId: 'bolt_EP' + $json.body.episodeId, agentId: 'bolt', title: 'Render & ship ' + ($json.body.clips ?? 4) + ' clips', status: 'running', progress: 0.05 }) }}"
+      }
+    },
+    {
+      "id": "render-api",
+      "name": "Render API (ISI KREDENSIAL)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-40, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.creatomate.com/v1/renders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ template_id: 'GANTI-TEMPLATE-ID', modifications: { episode: $json.body.episodeId } }) }}",
+        "options": {
+          "note": "Header Auth: Authorization: Bearer <API key render provider>. Respons berisi render id + status."
+        }
+      }
+    },
+    {
+      "id": "wait-render",
+      "name": "Wait render",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [220, 0],
+      "parameters": { "amount": 20, "unit": "seconds" }
+    },
+    {
+      "id": "check-render",
+      "name": "Check render status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 0],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.creatomate.com/v1/renders/{{ $('Render API (ISI KREDENSIAL)').item.json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "notes": "Loop sederhana: sambungkan kembali ke 'Wait render' selama status bukan 'succeeded'; update progress diorama di tiap putaran."
+    },
+    {
+      "id": "upload",
+      "name": "YouTube upload (ISI OAUTH)",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [740, 0],
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "=CLIPYARD · EP{{ $('Webhook: bolt stage').item.json.body.episodeId }}",
+        "regionCode": "ID",
+        "categoryId": "22",
+        "options": { "privacyStatus": "unlisted" },
+        "binaryProperty": "data"
+      }
+    },
+    {
+      "id": "job-done",
+      "name": "Job → DONE",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8787/api/n8n/job",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Clipyard-Token", "value": "clipyard-dev-token" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobId: 'bolt_EP' + $('Webhook: bolt stage').item.json.body.episodeId, agentId: 'bolt', status: 'done', progress: 1, title: 'Shipped to channel · EP' + $('Webhook: bolt stage').item.json.body.episodeId }) }}"
+      }
+    },
+    {
+      "id": "push-stats",
+      "name": "Floor API: stats naik",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1260, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8787/api/n8n/stats",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Clipyard-Token", "value": "clipyard-dev-token" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ clipsShipped: {{ $('Webhook: bolt stage').item.json.body.clips ?? 4 }}, renderQueue: Math.max(0, {{ $json.queueLeft ?? 0 }}) }) }}",
+        "options": {}
+      },
+      "notes": "Ganti angka clipsShipped dengan counter kumulatif dari DB/Sheet kamu — inilah yang membuat ticker & whiteboard diorama naik secara live."
+    }
+  ],
+  "connections": {
+    "Webhook: bolt stage": {
+      "main": [[{ "node": "Job → RUNNING", "type": "main", "index": 0 }]]
+    },
+    "Job → RUNNING": {
+      "main": [[{ "node": "Render API (ISI KREDENSIAL)", "type": "main", "index": 0 }]]
+    },
+    "Render API (ISI KREDENSIAL)": {
+      "main": [[{ "node": "Wait render", "type": "main", "index": 0 }]]
+    },
+    "Wait render": {
+      "main": [[{ "node": "Check render status", "type": "main", "index": 0 }]]
+    },
+    "Check render status": {
+      "main": [[{ "node": "YouTube upload (ISI OAUTH)", "type": "main", "index": 0 }]]
+    },
+    "YouTube upload (ISI OAUTH)": {
+      "main": [[{ "node": "Job → DONE", "type": "main", "index": 0 }]]
+    },
+    "Job → DONE": {
+      "main": [[{ "node": "Floor API: stats naik", "type": "main", "index": 0 }]]
+    }
+  }
+}

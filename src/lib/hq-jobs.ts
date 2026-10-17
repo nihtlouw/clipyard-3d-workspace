@@ -1,5 +1,5 @@
 /**
- * CLIPYARD floor — job data contract.
+ * CLIPYARD floor — job data contract (v1.1).
  *
  * This is the agreement between the outside world (n8n, a DB-backed API,
  * or the built-in mock simulator) and the diorama. Whatever produces the
@@ -7,8 +7,11 @@
  *
  *   GET {VITE_FLOOR_URL}  →  FloorSnapshot
  *
- * The diorama polls that URL every ~2s (10s when the tab is hidden) when
- * VITE_FLOOR_URL is set; otherwise a mock simulator drives the same store.
+ * v1.1 adds optional human-in-the-loop `approvals[]`: producers (n8n via the
+ * Floor API, or the mock) can pause a stage and ask a human to decide. The
+ * diorama renders an Approval Inbox — Setujui/Tolak buttons post the decision
+ * straight back to the Floor API, which (optionally) callbacks into the
+ * waiting n8n workflow.
  */
 import type { AgentId } from "@/lib/hq-data";
 
@@ -29,11 +32,29 @@ export interface ClipJob {
   updatedAt: number;
 }
 
+/** A stage paused until a human approves/rejects (human-in-the-loop gate). */
+export interface ApprovalRequest {
+  /** stable id — deciding the same id twice is a no-op */
+  id: string;
+  agentId: AgentId;
+  /** what is being asked, e.g. "Approve cover A/B/C · EP302" */
+  title: string;
+  /** optional context for the reviewer */
+  detail?: string;
+  /** related job — cleared automatically when that job moves again */
+  jobId?: string;
+  requestedAt: number;
+}
+
+export type ApprovalDecision = "approved" | "rejected";
+
 export interface FloorStats {
   clipsShipped: number;
   renderQueue: number;
   avgClipSec: number;
   channelsFed: number;
+  /** optional: cumulative LLM/render tokens burned today (for the stats bar) */
+  tokensOut?: number;
 }
 
 /** The full payload the diorama understands. */
@@ -45,6 +66,8 @@ export interface FloorSnapshot {
   /** latest job per agent (a few jobs back is fine — see currentJobFor) */
   jobs: ClipJob[];
   stats: FloorStats;
+  /** optional pending approvals (v1.1) */
+  approvals?: ApprovalRequest[];
 }
 
 const AGENT_IDS: AgentId[] = ["akira", "nova", "hook", "lexa", "pixel", "bolt"];
@@ -80,6 +103,26 @@ export function sanitizeSnapshot(raw: unknown, source: "sim" | "live"): FloorSna
   }
   if (jobs.length === 0) return null;
 
+  // optional approvals (v1.1) — tolerated when absent or malformed
+  const approvals: ApprovalRequest[] = [];
+  if (Array.isArray(obj.approvals)) {
+    for (const item of obj.approvals) {
+      if (typeof item !== "object" || item === null) continue;
+      const a = item as Record<string, unknown>;
+      const agentId = a.agentId as AgentId;
+      if (typeof a.id !== "string" || !a.id || !AGENT_IDS.includes(agentId)) continue;
+      approvals.push({
+        id: a.id,
+        agentId,
+        title: typeof a.title === "string" && a.title ? a.title.slice(0, 90) : "Perlu persetujuan",
+        detail: typeof a.detail === "string" ? a.detail.slice(0, 160) : undefined,
+        jobId: typeof a.jobId === "string" ? a.jobId : undefined,
+        requestedAt:
+          typeof a.requestedAt === "number" && Number.isFinite(a.requestedAt) ? a.requestedAt : Date.now(),
+      });
+    }
+  }
+
   const num = (v: unknown, fallback: number) =>
     typeof v === "number" && Number.isFinite(v) ? v : fallback;
 
@@ -92,7 +135,11 @@ export function sanitizeSnapshot(raw: unknown, source: "sim" | "live"): FloorSna
       renderQueue: Math.max(0, Math.floor(num((obj.stats as FloorStats | undefined)?.renderQueue, 0))),
       avgClipSec: Math.max(1, num((obj.stats as FloorStats | undefined)?.avgClipSec, 42)),
       channelsFed: Math.max(0, Math.floor(num((obj.stats as FloorStats | undefined)?.channelsFed, 0))),
+      ...(typeof (obj.stats as FloorStats | undefined)?.tokensOut === "number"
+        ? { tokensOut: Math.max(0, Math.floor((obj.stats as FloorStats).tokensOut as number)) }
+        : {}),
     },
+    approvals: approvals.length ? approvals : undefined,
   };
 }
 
