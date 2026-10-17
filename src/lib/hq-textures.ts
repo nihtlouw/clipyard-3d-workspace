@@ -486,63 +486,130 @@ export function createBlobShadow() {
   return toTexture(canvas);
 }
 
-/** "CREW GARAGE" placard for the diecast shelf. */
-export function createGaragePlacard() {
-  const canvas = makeCanvas(256, 72);
-  const ctx = ctx2d(canvas);
-  ctx.fillStyle = "#232746";
-  roundRect(ctx, 0, 0, 256, 72, 16);
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "800 30px system-ui, sans-serif";
-  ctx.fillText("CREW GARAGE", 22, 46);
-  ctx.fillStyle = "#fbbf24";
-  ctx.beginPath();
-  ctx.arc(228, 36, 9, 0, Math.PI * 2);
-  ctx.fill();
-  return toTexture(canvas);
-}
-
 /* ---------------------------------- nameplate (hover sprite) ---------------------------------- */
 
-/** Light-theme floating nameplate shown on hover / select / labels toggle. */
-export function createNameplate(name: string, role: string, color: string) {
-  const canvas = makeCanvas(320, 104);
+/**
+ * Floating nameplate, reference-style: colored pill with the agent name and
+ * a live status ("AKIRA · ng-routing" / "PIXEL · minta OK" / "NOVA · rehat").
+ */
+export function createNameplate(name: string, color: string) {
+  const canvas = makeCanvas(360, 84);
   const ctx = ctx2d(canvas);
-  redrawNameplateCanvas(ctx, name, role, color, false);
   const tex = toTexture(canvas);
-  const redraw = (active: boolean) => {
-    redrawNameplateCanvas(ctx, name, role, color, active);
+  let lastText = "";
+  const redraw = (status: string) => {
+    const next = status.slice(0, 26);
+    if (next === lastText) return;
+    lastText = next;
+    ctx.clearRect(0, 0, 360, 84);
+    // pill
+    ctx.fillStyle = color;
+    const text = `${name}  ·  ${next}`;
+    ctx.font = "800 30px system-ui, sans-serif";
+    const w = ctx.measureText(text).width + 74;
+    roundRect(ctx, (360 - w) / 2, 12, w, 60, 30);
+    // white dot + initial
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.beginPath();
+    ctx.arc((360 - w) / 2 + 26, 42, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.font = "800 20px system-ui, sans-serif";
+    ctx.fillText(name[0], (360 - w) / 2 + 20, 49);
+    // label
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "800 30px system-ui, sans-serif";
+    ctx.fillText(text, (360 - w) / 2 + 50, 53);
     tex.needsUpdate = true;
   };
+  redraw("");
   return { tex, redraw };
 }
 
-function redrawNameplateCanvas(
-  ctx: CanvasRenderingContext2D,
-  name: string,
-  role: string,
-  color: string,
-  active: boolean,
-) {
-  ctx.clearRect(0, 0, 320, 104);
-  ctx.fillStyle = active ? "rgba(255,255,255,0.97)" : "rgba(255,255,255,0.88)";
-  roundRect(ctx, 6, 8, 308, 88, 22);
-  ctx.strokeStyle = active ? color : "rgba(35,39,70,0.16)";
-  ctx.lineWidth = active ? 6 : 3;
-  roundRectStroke(ctx, 6, 8, 308, 88, 22);
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(46, 52, 18, 0, Math.PI * 2);
-  ctx.fill();
+/* ---------------------------------- signs, screens & props ---------------------------------- */
+
+/** Wall sign: white plate, navy bold text, accent dot. */
+export function createSign(text: string, accent: string, w = 256, h = 72) {
+  const canvas = makeCanvas(w, h);
+  const ctx = ctx2d(canvas);
   ctx.fillStyle = "#ffffff";
-  ctx.font = "800 20px system-ui, sans-serif";
-  ctx.fillText(name[0], 40, 59);
+  roundRect(ctx, 0, 0, w, h, 16);
+  ctx.strokeStyle = "rgba(35,39,70,0.14)";
+  ctx.lineWidth = 3;
+  roundRectStroke(ctx, 0, 0, w, h, 16);
+  ctx.fillStyle = accent;
+  ctx.beginPath();
+  ctx.arc(28, h / 2, 10, 0, Math.PI * 2);
+  ctx.fill();
   ctx.fillStyle = "#232746";
-  ctx.font = "800 26px system-ui, sans-serif";
-  ctx.fillText(name, 78, 50);
+  ctx.font = "800 28px system-ui, sans-serif";
+  ctx.fillText(text, 50, h / 2 + 10);
+  return toTexture(canvas);
+}
+
+/** Meeting-room TV: CLIPYARD branding + big live sim time + workday progress. */
+export function createMeetingScreen() {
+  const canvas = makeCanvas(512, 288);
+  const ctx = ctx2d(canvas);
+  const tex = toTexture(canvas);
+  const redraw = (hour: number, onShift: boolean) => {
+    ctx.fillStyle = "#141834";
+    ctx.fillRect(0, 0, 512, 288);
+    ctx.fillStyle = "#22d3ee";
+    ctx.font = "800 26px system-ui, sans-serif";
+    ctx.fillText("CLIPYARD", 28, 46);
+    ctx.fillStyle = "#8a90b8";
+    ctx.font = "700 16px system-ui, sans-serif";
+    ctx.fillText("STANDUP · BAY 7", 170, 46);
+    // big time
+    const hh = String(Math.floor(hour) % 24).padStart(2, "0");
+    const mm = String(Math.floor((hour - Math.floor(hour)) * 60)).padStart(2, "0");
+    ctx.fillStyle = "#f4f6ff";
+    ctx.font = "800 108px ui-monospace, monospace";
+    ctx.fillText(`${hh}.${mm}`, 28, 176);
+    // shift progress bar
+    const p = Math.min(1, Math.max(0, (hour - 9) / 8));
+    ctx.fillStyle = "#252a4d";
+    roundRect(ctx, 28, 216, 456, 16, 8);
+    ctx.fillStyle = onShift ? "#34d399" : "#a78bfa";
+    roundRect(ctx, 28, 216, 456 * p, 16, 8);
+    ctx.fillStyle = "#8a90b8";
+    ctx.font = "700 15px system-ui, sans-serif";
+    ctx.fillText(onShift ? "WORKDAY IN PROGRESS" : "OFF SHIFT — SEE YOU AT 09:00", 28, 262);
+    tex.needsUpdate = true;
+  };
+  redraw(10.5, true);
+  return { tex, redraw };
+}
+
+/** Vending machine front: glowing snack/coffee rows. */
+export function createVendingFront() {
+  const canvas = makeCanvas(192, 320);
+  const ctx = ctx2d(canvas);
+  ctx.fillStyle = "#1c2140";
+  roundRect(ctx, 0, 0, 192, 320, 12);
+  ctx.fillStyle = "#232a52";
+  roundRect(ctx, 14, 16, 120, 226, 8);
+  const rnd = seededRandom(4242);
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 3; c++) {
+      const colors = ["#fbbf24", "#f472b6", "#34d399", "#22d3ee", "#f97316"];
+      ctx.fillStyle = colors[Math.floor(rnd() * colors.length)];
+      roundRect(ctx, 24 + c * 38, 28 + r * 42, 28, 30, 5);
+    }
+  }
+  ctx.fillStyle = "#0e1229";
+  roundRect(ctx, 142, 16, 36, 120, 8);
+  ctx.fillStyle = "#f4f6ff";
+  ctx.font = "800 17px system-ui, sans-serif";
+  ctx.save();
+  ctx.translate(166, 240);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText("KOPI 24/7", 0, 0);
+  ctx.restore();
   ctx.fillStyle = "#8a90b8";
-  ctx.font = "600 16px system-ui, sans-serif";
-  ctx.fillText(role.toUpperCase(), 78, 76);
+  roundRect(ctx, 24, 262, 154, 22, 6);
+  return toTexture(canvas);
 }
 
 /* ---------------------------------- shared path helpers ---------------------------------- */

@@ -128,6 +128,7 @@ function createMockSource(): FloorSource {
     renderQueue: STATS.renderQueue,
     avgClipSec: STATS.avgClipSec,
     channelsFed: STATS.channelsFed,
+    tokensOut: 18_400,
   };
 
   const approvals: ApprovalRequest[] = [];

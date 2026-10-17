@@ -41,7 +41,7 @@ export function HqExperience() {
           orthographic
           dpr={degraded ? 1 : [1, 1.75]}
           gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
-          camera={{ position: [17, 15, 17], zoom: 34, near: 1, far: 140 }}
+          camera={{ position: [21, 18, 21], zoom: 30, near: 1, far: 160 }}
           onPointerMissed={() => select(null)}
         >
           <PerformanceMonitor

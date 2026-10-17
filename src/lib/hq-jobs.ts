@@ -53,6 +53,8 @@ export interface FloorStats {
   renderQueue: number;
   avgClipSec: number;
   channelsFed: number;
+  /** optional: cumulative LLM/render tokens burned today (for the stats bar) */
+  tokensOut?: number;
 }
 
 /** The full payload the diorama understands. */
@@ -133,6 +135,9 @@ export function sanitizeSnapshot(raw: unknown, source: "sim" | "live"): FloorSna
       renderQueue: Math.max(0, Math.floor(num((obj.stats as FloorStats | undefined)?.renderQueue, 0))),
       avgClipSec: Math.max(1, num((obj.stats as FloorStats | undefined)?.avgClipSec, 42)),
       channelsFed: Math.max(0, Math.floor(num((obj.stats as FloorStats | undefined)?.channelsFed, 0))),
+      ...(typeof (obj.stats as FloorStats | undefined)?.tokensOut === "number"
+        ? { tokensOut: Math.max(0, Math.floor((obj.stats as FloorStats).tokensOut as number)) }
+        : {}),
     },
     approvals: approvals.length ? approvals : undefined,
   };

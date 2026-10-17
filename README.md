@@ -129,3 +129,35 @@ Uji loop end-to-end tanpa n8n: jalankan Floor API + `npm run dev`, lalu
 untuk node HOOK, render-API key untuk BOLT, OAuth YouTube untuk upload, token
 Telegram/Slack bila mau notifikasi keluar diorama, dan `CLIPYARD_FLOOR_TOKEN`
 produksi + URL publik Floor API. Semua ditandai "ISI KREDENSIAL" di template.
+
+
+---
+
+# Fase 4 — Open-plan HQ ala dashboard (referensi baru)
+
+Diorama dirombak jadi kantor open-plan penuh mengikuti referensi
+"Kantor Virtual HQ": ruangan 28×19 m 4 tembok dengan **smart fade** — tembok
+yang menghadang kamera menghilang otomatis (putar 360° bebas), zona baru:
+
+- **Meeting room** (kaca + meja besar + TV live dengan jam sim) — standup
+  harian otomatis jam 13:00, seluruh crew pindah ke kursi rapat
+- **Boss room** (kaca + meja eksekutif + rak trofi emas)
+- **Ruang rehat** (sofa, bantal lantai, mesin vending KOPI 24/7) — tujuan
+  crew di luar shift & saat "ngisi token" (job gagal)
+- **Pojok kopi** (counter + mesin kopi + kettle), **Render nest** (2 rak
+  server dengan LED berkedip), rak buku pelangi, **CREW GARAGE** pindah ke
+  dinding selatan, dan **kucing kantor** yang jalan sendiri 🐈
+
+HUD ala dashboard: **aktivitas langsung** (feed live + filter per agen),
+**stats grid** (JAM WIB, token keluar/diproses, rapat berikutnya, aksi, sesi
+aktif), **backlog panel** (deadline dekat / nunggu owner / ide), **6 agent
+cards** bawah (status KERJA/RAPAT/REHAT/WAITING OK/ERROR + tugas + tok/ctx),
+kontrol **Otomatis/Terang/Gelap** (override pencahayaan), Label, Auto-sway,
+**Sudut awal** (reset kamera), **Layar penuh** (tombol / tombol F).
+
+Kamera kini orbit penuh 360° (pitch & zoom tetap dikunci enak). Nameplate
+agen bergaya pill referensi dengan status live: "AKIRA · ng-routing",
+"PIXEL · minta OK", "NOVA · nunggu tugas", "BOLT · rehat".
+
+Bukti visual: `screenshots/hq-office-*.png` (siang, malam, standup 13:00,
+rotasi 360°).

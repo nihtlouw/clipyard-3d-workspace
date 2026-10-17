@@ -24,7 +24,16 @@ export interface AgentInfo {
   lounge: [number, number];
   /** facing yaw in the lounge */
   loungeYaw: number;
+  /** short activity verb for the live nameplate (on shift) */
+  verb: string;
 }
+
+/** Backlog ideas shown in the HUD right panel (fun static copy). */
+export const IDEAS = [
+  "Template laporan otomatis per klien",
+  "A/B hook baru untuk klip pendek",
+  "Rapikan dokumentasi server render",
+] as const;
 
 export const COMPANY = {
   name: "CLIPYARD",
@@ -49,9 +58,10 @@ export const AGENTS: AgentInfo[] = [
     clipsToday: 214,
     station: "Desk A2 · window row",
     vehicle: "Midnight-blue sedan",
-    desk: [0, -3.52],
+    desk: [-2.5, -4.2],
     deskYaw: 0,
     lounge: [6.6, 2.2],
+    verb: "ng-routing",
     loungeYaw: -Math.PI / 2,
   },
   {
@@ -65,9 +75,10 @@ export const AGENTS: AgentInfo[] = [
     clipsToday: 389,
     station: "Desk A1 · window row",
     vehicle: "Teal render van",
-    desk: [-4.9, -3.52],
+    desk: [-7.5, -4.2],
     deskYaw: 0,
     lounge: [6.6, 3.2],
+    verb: "ngedit",
     loungeYaw: -Math.PI / 2,
   },
   {
@@ -81,9 +92,10 @@ export const AGENTS: AgentInfo[] = [
     clipsToday: 512,
     station: "Desk A3 · window row",
     vehicle: "Sunrise-yellow hatch",
-    desk: [4.9, -3.52],
+    desk: [2.5, -4.2],
     deskYaw: 0,
     lounge: [6.6, 4.2],
+    verb: "cari hook",
     loungeYaw: -Math.PI / 2,
   },
   {
@@ -97,9 +109,10 @@ export const AGENTS: AgentInfo[] = [
     clipsToday: 447,
     station: "Desk B1 · front row",
     vehicle: "Mint city scooter",
-    desk: [-4.9, 1.08],
+    desk: [-7.5, 0.6],
     deskYaw: 0,
     lounge: [4.2, 2.4],
+    verb: "nyusun caption",
     loungeYaw: 1.9,
   },
   {
@@ -113,9 +126,10 @@ export const AGENTS: AgentInfo[] = [
     clipsToday: 178,
     station: "Desk B2 · front row",
     vehicle: "Magenta sport hatch",
-    desk: [0, 1.08],
+    desk: [-2.5, 0.6],
     deskYaw: 0,
     lounge: [5.2, 4.3],
+    verb: "desain cover",
     loungeYaw: 1.1,
   },
   {
@@ -129,9 +143,10 @@ export const AGENTS: AgentInfo[] = [
     clipsToday: 231,
     station: "Desk B3 · front row",
     vehicle: "Orange work pickup",
-    desk: [4.9, 1.08],
+    desk: [2.5, 0.6],
     deskYaw: 0,
     lounge: [6.05, 2.6],
+    verb: "rendering",
     loungeYaw: 1.5,
   },
 ];
@@ -158,7 +173,7 @@ export const VEHICLES: VehicleInfo[] = [
     color: "#0ea5a4",
     name: "The Render Van",
     plate: "CLIP·024",
-    pos: [-8.5, 1.68],
+    pos: [7.2, 9.1],
     yaw: Math.PI / 2,
   },
   {
@@ -168,7 +183,7 @@ export const VEHICLES: VehicleInfo[] = [
     color: "#1e3a8a",
     name: "Ops Sedan",
     plate: "CLIP·001",
-    pos: [-8.5, 1.0],
+    pos: [6.4, 9.1],
     yaw: Math.PI / 2,
   },
   {
@@ -178,7 +193,7 @@ export const VEHICLES: VehicleInfo[] = [
     color: "#f59e0b",
     name: "Hook Hatch",
     plate: "CLIP·007",
-    pos: [-8.5, 2.36],
+    pos: [8.0, 9.1],
     yaw: Math.PI / 2,
   },
   {
@@ -188,7 +203,7 @@ export const VEHICLES: VehicleInfo[] = [
     color: "#db2777",
     name: "Cover Cruiser",
     plate: "CLIP·012",
-    pos: [-8.5, 3.04],
+    pos: [8.8, 9.1],
     yaw: Math.PI / 2,
   },
   {
@@ -198,7 +213,7 @@ export const VEHICLES: VehicleInfo[] = [
     color: "#ea580c",
     name: "Ship Truck",
     plate: "CLIP·077",
-    pos: [-8.5, 3.72],
+    pos: [9.6, 9.1],
     yaw: Math.PI / 2,
   },
   {
@@ -208,8 +223,8 @@ export const VEHICLES: VehicleInfo[] = [
     color: "#10b981",
     name: "Sub Scooter",
     plate: "CLIP·009",
-    pos: [-8.45, 4.44],
-    yaw: Math.PI / 2 + 0.45,
+    pos: [10.35, 9.25],
+    yaw: Math.PI / 2 + 0.4,
   },
 ];
 
