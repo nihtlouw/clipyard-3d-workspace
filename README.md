@@ -326,3 +326,19 @@ status & niat konfigurasinya.
 Bukti visual: `screenshots/fase7-*.png` (mode nyata jam 20:00 — agen 24/7
 tetap di meja, yang terjadwal/nonaktif di ruang rehat, yang menunggu OK di
 ruang meeting; demo standup tetap utuh).
+
+Polish 7b (deduplikasi UI — satu fakta, satu rumah): panel **Backlog**
+dihapus karena seluruh isinya dobel ("Deadline dekat" = kartu agen,
+"Nunggu owner" = approval inbox tepat di atasnya, "Ide/nanti" = teks
+statis); rel kanan kini hanya Jam Sim + Approval Inbox. Tile statistik HUD
+6→4 (buang JAM WIB yang ganda dengan panel jam dan tile rapat; AKSI diganti
+ANTREAN RENDER); subtitle TopBar tidak lagi mengulang hitungan agen aktif;
+chip ON/OFF SHIFT disembunyikan di mode nyata; pill petunjuk melayang di
+desktop dihapus (tooltip tombol sudah menjelaskan, versi HP tetap). Di
+dasbor: tile "Klip terkirim/Antrean render" yang muncul di dua halaman kini
+hanya di /statistik — /aktivitas memakai "Menunggu OK darimu" + "Hasil
+selesai" — dan pill "N approval menunggu" di header menjadi tautan ke
+/aktivitas. Approval kini punya satu kotak aksi (inbox); sisanya penanda:
+chip kartu (status), papan nama/ruang meeting (ambient), badge Kelola
+(penghitung), feed (riwayat). Bukti: `screenshots/dedup-*.png` + asersi
+terprogram (BACKLOG=0, header inbox=1, JAM WIB=0).

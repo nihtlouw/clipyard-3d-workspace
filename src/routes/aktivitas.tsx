@@ -32,7 +32,7 @@ function AktivitasPage() {
   const feed = useHqStore((s) => s.feed);
   const jobs = useHqStore((s) => s.jobs);
   const approvals = useHqStore((s) => s.approvals);
-  const stats = useHqStore((s) => s.stats);
+  const outputs = useHqStore((s) => s.outputs);
   const actions = useHqStore((s) => s.actions);
   const profiles = useHqStore((s) => s.profiles);
   const clearFeed = useHqStore((s) => s.clearFeed);
@@ -74,8 +74,8 @@ function AktivitasPage() {
     >
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile label="Job berlangsung" value={running} sub={`${queued} antre · ${failed} gagal`} />
-        <StatTile label="Klip terkirim" value={stats.clipsShipped.toLocaleString("id-ID")} sub="dari snapshot pipeline terakhir" />
-        <StatTile label="Antrean render" value={stats.renderQueue} sub={`rata-rata klip ${stats.avgClipSec} dtk`} />
+        <StatTile label="Menunggu OK darimu" value={approvals.length} sub={approvals.length ? "putuskan di panel di bawah" : "tidak ada yang menunggu"} color={approvals.length ? "#fbbf24" : undefined} />
+        <StatTile label="Hasil selesai" value={outputs.length} sub="terarsip di browser ini — detail di Statistik" />
         <StatTile label="Aksi tercatat" value={actions.toLocaleString("id-ID")} sub="total event sejak studio dibuka" />
       </div>
 
