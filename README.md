@@ -284,3 +284,12 @@ berbasis berkas:
   tersimpan di `localStorage` browser (`clipyard.*.v1`).
 
 Bukti visual: `screenshots/fase6-*.png`.
+
+Polish 6b (HUD lebih bersih & ramah): panel kanan (jam sim, approval inbox,
+backlog) kini satu rel bertumpuk sehingga tidak pernah saling menimpa;
+approval inbox selaras panel lain dengan judul utuh dan tombol lebih lembut;
+backlog bisa dilipat; feed Aktivitas Langsung memakai chip satu baris dan
+scrollbar tipis gelap (`.hq-scroll`) sehingga label waktu tidak terpotong;
+kontrol tampilan atas digabung jadi satu cluster pill; kartu agen menampilkan
+progress bar + persentase (menggantikan baris token); label waktu lebih
+ramah ("5 mnt"). Bukti: `screenshots/polish-hud-*.png`.

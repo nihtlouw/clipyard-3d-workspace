@@ -280,3 +280,32 @@
   border: 3px solid #f5b45e;
   cursor: pointer;
 }
+
+/* Thin dark scrollbar for HUD lists/panels (replaces the bright OS default) */
+.hq-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(152, 161, 196, 0.45) transparent;
+}
+.hq-scroll::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.hq-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.hq-scroll::-webkit-scrollbar-thumb {
+  background: rgba(152, 161, 196, 0.45);
+  border-radius: 999px;
+}
+.hq-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(152, 161, 196, 0.75);
+}
+
+/* Scrollable but no visible bar (chip rows, agent-card strip) */
+.hq-no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hq-no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
