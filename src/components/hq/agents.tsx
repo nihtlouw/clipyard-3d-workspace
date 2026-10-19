@@ -1,12 +1,15 @@
 /**
- * CLIPYARD crew — round hoodie mascots with live status nameplates.
- * Movement states: desk (on shift) → meeting room (daily 13:00 standup) →
- * rest room / lounge (off shift, or "recharging" after a failed job).
+ * CLIPYARD crew — white robots with agent-color accents (reference redesign).
+ * Glossy white shell, dark visor with glowing eyes, colored ear caps / neck
+ * ring / antenna ball / chest light so each agent stays identifiable from
+ * every angle. Movement states: desk pods (on shift) → glass meeting room
+ * (13:00 standup) → glass rest room (off shift). Routes go through the real
+ * glass doors via a small waypoint queue.
  */
 import { useMemo, useRef, useState } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
-import { AGENTS, type AgentInfo } from "@/lib/hq-data";
+import { AGENTS, MEETING_SEATS, ROOM, type AgentInfo } from "@/lib/hq-data";
 import { createNameplate } from "@/lib/hq-textures";
 import { currentJobFor } from "@/lib/hq-jobs";
 import { isMeeting, isOnShift, useHqStore } from "@/lib/hq-store";
@@ -16,43 +19,46 @@ function hoverCursor(e: ThreeEvent<PointerEvent>, on: boolean) {
   document.body.style.cursor = on ? "pointer" : "auto";
 }
 
-/** Standup seats around the meeting table (index → seat). */
-const MEETING_SEATS: Array<{ pos: [number, number]; yaw: number }> = [
-  { pos: [8.0, 4.62], yaw: 0 },
-  { pos: [9.35, 4.62], yaw: 0 },
-  { pos: [10.7, 4.62], yaw: 0 },
-  { pos: [8.0, 6.58], yaw: Math.PI },
-  { pos: [9.35, 6.58], yaw: Math.PI },
-  { pos: [10.7, 6.58], yaw: Math.PI },
-];
-/** chair seat surface is at y≈0.765 — sit slightly into the cushion */
-const SEAT_Y = 0.68;
+/* ---------------------------------- glass-door routing ---------------------------------- */
 
-/** sliding-door opening in the meeting-room glass (x range on the z=2.0 line) */
-const DOOR = { x0: 8.55, x1: 10.15 };
-const DOOR_OUT: [number, number] = [9.35, 0.95];
+type Zone = "open" | "meeting" | "lounge";
 
-/** does the segment a->b pass through meeting-room glass? */
-function crossesMeetingGlass(ax: number, az: number, bx: number, bz: number): boolean {
-  if (ax < 5.1 !== bx < 5.1) {
-    const zc = az + (bz - az) * ((5.1 - ax) / (bx - ax));
-    if (zc > 2.15 && zc < 9.05) return true;
-  }
-  if (az < 2.0 !== bz < 2.0) {
-    const xc = ax + (bx - ax) * ((2.0 - az) / (bz - az));
-    if (xc > 5.3 && xc < 13.4 && (xc < DOOR.x0 || xc > DOOR.x1)) return true;
-  }
-  return false;
+function zoneOf(x: number, z: number): Zone {
+  if (x < ROOM.GLASS_X - 0.05) return "open";
+  return z < ROOM.PARTITION_Z ? "meeting" : "lounge";
 }
 
-function Hoodie({ info, index }: { info: AgentInfo; index: number }) {
+function doorZ(zone: Zone) {
+  return zone === "meeting" ? ROOM.MEETING_DOOR_Z : ROOM.LOUNGE_DOOR_Z;
+}
+
+/** Waypoints from (x,z) to the target, detouring through the glass doors. */
+function buildRoute(x: number, z: number, tx: number, tz: number): Array<[number, number]> {
+  const from = zoneOf(x, z);
+  const to = zoneOf(tx, tz);
+  if (from === to) return [[tx, tz]];
+  const steps: Array<[number, number]> = [];
+  if (from !== "open") {
+    steps.push([ROOM.GLASS_X + 0.85, doorZ(from)], [ROOM.GLASS_X - 0.85, doorZ(from)]);
+  }
+  if (to !== "open") {
+    steps.push([ROOM.GLASS_X - 0.85, doorZ(to)], [ROOM.GLASS_X + 0.85, doorZ(to)]);
+  }
+  steps.push([tx, tz]);
+  return steps;
+}
+
+/* ---------------------------------- one robot ---------------------------------- */
+
+function Robot({ info, index }: { info: AgentInfo; index: number }) {
   const group = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
   const head = useRef<THREE.Group>(null);
-  const face = useRef<THREE.Mesh>(null);
+  const eyes = useRef<THREE.Group>(null);
   const leftArm = useRef<THREE.Group>(null);
   const rightArm = useRef<THREE.Group>(null);
-  const ring = useRef<THREE.MeshBasicMaterial>(null);
+  const ringMesh = useRef<THREE.Mesh>(null);
+  const ringMat = useRef<THREE.MeshBasicMaterial>(null);
   const plateMat = useRef<THREE.SpriteMaterial>(null);
   const plateSprite = useRef<THREE.Sprite>(null);
   const [hover, setHover] = useState(false);
@@ -61,16 +67,13 @@ function Hoodie({ info, index }: { info: AgentInfo; index: number }) {
   const labels = useHqStore((s) => s.labels);
   const selected = useHqStore((s) => s.selection?.kind === "agent" && s.selection.id === info.id);
 
-  const faceTex = useMemo(() => getFaceTexture(), []);
   const nameplate = useMemo(() => createNameplate(info.name, info.color), [info]);
   const phase = useMemo(() => index * 1.73, [index]);
-  // per-agent walk speed so the pack spreads out on the way to meetings
-  const speed = useMemo(() => 1.3 + ((index * 53) % 9) / 9, [index]);
-  const target = useRef(new THREE.Vector3(info.desk[0], 0, info.desk[1]));
-  const targetYaw = useRef(info.deskYaw);
-  const walking = useRef(false);
+  const speed = useMemo(() => 1.5 + ((index * 53) % 9) / 14, [index]); // per-agent pace → the pack spreads out
+  const route = useRef<Array<[number, number]>>([]);
+  const routeKey = useRef("");
+  const baseY = useRef(ROOM.SEAT_Y);
   const plateText = useRef("");
-  const prevState = useRef("");
 
   const seatPos = MEETING_SEATS[index];
 
@@ -85,92 +88,92 @@ function Hoodie({ info, index }: { info: AgentInfo; index: number }) {
     const failed = job?.status === "failed";
     const waitingOk = st.approvals.some((ap) => ap.agentId === info.id);
 
-    // ---- pick target + status text ----
-    let px: number;
-    let py: number;
-    let pz: number;
-    let yaw: number;
-    let statusText: string;
+    // ---- destination + status text ----
+    let px: number, py: number, pz: number, yaw: number, statusText: string, key: string;
     if (meeting) {
-      px = seatPos.pos[0];
-      pz = seatPos.pos[1];
-      py = SEAT_Y;
-      yaw = seatPos.yaw;
-      statusText = "standup";
+      px = seatPos.pos[0]; pz = seatPos.pos[1]; py = ROOM.SEAT_Y; yaw = seatPos.yaw;
+      statusText = "standup"; key = "meeting";
     } else if (on) {
-      px = info.desk[0];
-      py = 0;
-      pz = info.desk[1];
-      yaw = info.deskYaw;
+      px = info.desk[0]; pz = info.desk[1]; py = ROOM.SEAT_Y; yaw = info.deskYaw;
       statusText = failed ? "error!" : waitingOk ? "minta OK" : job?.status === "queued" ? "nunggu tugas" : info.verb;
+      key = "desk";
     } else {
-      px = info.lounge[0];
-      py = info.loungeY;
-      pz = info.lounge[1];
-      yaw = info.loungeYaw;
-      statusText = failed ? "ngisi token…" : "rehat";
+      px = info.lounge[0]; pz = info.lounge[1]; py = info.loungeY; yaw = info.loungeYaw;
+      statusText = failed ? "ngisi token…" : "rehat"; key = "lounge";
     }
 
     const g = group.current;
     if (!g) return;
 
-    const before = g.position.clone();
-    let tx = px;
-    let tz = pz;
-    if (crossesMeetingGlass(before.x, before.z, tx, tz)) {
-      tx = DOOR_OUT[0];
-      tz = DOOR_OUT[1];
-      if (Math.hypot(before.x - tx, before.z - tz) < 0.5) {
-        // at the outer door point the straight line already goes through the opening
-        tx = px;
-        tz = pz;
+    // rebuild the route only when the destination state flips
+    if (routeKey.current !== key) {
+      routeKey.current = key;
+      route.current = buildRoute(g.position.x, g.position.z, px, pz);
+    }
+
+    // walk the waypoint queue
+    const wp = route.current[0];
+    const distFinal = Math.hypot(px - g.position.x, pz - g.position.z);
+    let walking = false;
+    let faceYaw = yaw;
+    if (wp) {
+      const distWp = Math.hypot(wp[0] - g.position.x, wp[1] - g.position.z);
+      if (distWp < 0.32) {
+        route.current.shift();
+      } else {
+        walking = true;
+        faceYaw = Math.atan2(wp[0] - g.position.x, wp[1] - g.position.z);
+        const k = 1 - Math.exp(-d * 1.15 * speed);
+        g.position.x += (wp[0] - g.position.x) * k;
+        g.position.z += (wp[1] - g.position.z) * k;
       }
     }
-    target.current.set(tx, py, tz);
-    g.position.lerp(target.current, 1 - Math.exp(-d * 1.7 * speed));
-    walking.current = before.distanceTo(g.position) > 0.004;
-
-    // face where we're going while walking, settle into the pose yaw on arrival
-    let wantYaw = yaw;
-    if (walking.current) {
-      const dx = target.current.x - before.x;
-      const dz = target.current.z - before.z;
-      if (dx * dx + dz * dz > 1e-8) wantYaw = Math.atan2(dx, dz);
+    const arrived = !wp && distFinal < 0.05;
+    if (!walking && distFinal >= 0.05 && route.current.length === 0) {
+      // drifted off (e.g. first frame) — settle straight to the spot
+      const k = 1 - Math.exp(-d * 2.2 * speed);
+      g.position.x += (px - g.position.x) * k;
+      g.position.z += (pz - g.position.z) * k;
+      walking = distFinal > 0.3;
+      if (walking) faceYaw = Math.atan2(px - g.position.x, pz - g.position.z);
     }
-    const cur = g.rotation.y;
-    const diff = ((wantYaw - cur + Math.PI) % (Math.PI * 2)) - Math.PI;
-    g.rotation.y = cur + diff * (1 - Math.exp(-d * 2.4));
 
-    const bob = Math.sin(t * 1.8 + phase) * 0.02;
-    const hop = walking.current ? Math.abs(Math.sin(t * 9 + phase)) * 0.13 : 0;
-    const waddle = walking.current ? Math.sin(t * 9 + phase) * 0.09 : 0;
-    g.position.y = py + bob + hop;
-    g.rotation.z = waddle;
+    const cur = g.rotation.y;
+    const diff = ((faceYaw - cur + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    g.rotation.y = cur + diff * (1 - Math.exp(-d * 3.2));
+
+    // seat height only once arrived; walk on the floor otherwise
+    const goalY = arrived || (!walking && route.current.length === 0) ? py : 0;
+    baseY.current += (goalY - baseY.current) * (1 - Math.exp(-d * 5));
+    const bob = Math.sin(t * 1.8 + phase) * 0.015;
+    const hop = walking ? Math.abs(Math.sin(t * 10 + phase)) * 0.09 : 0;
+    g.position.y = baseY.current + bob + hop;
+    g.rotation.z = walking ? Math.sin(t * 10 + phase) * 0.07 : 0;
+    if (ringMesh.current) ringMesh.current.position.y = 0.02 - g.position.y; // keep the ring on the floor
 
     if (body.current) {
-      const s = 1 + Math.sin(t * 2.1 + phase) * 0.012 + (walking.current ? Math.sin(t * 18) * 0.02 : 0);
+      const s = 1 + Math.sin(t * 2.1 + phase) * 0.01 + (walking ? Math.sin(t * 20) * 0.015 : 0);
       body.current.scale.set(1 / Math.sqrt(s), s, 1 / Math.sqrt(s));
     }
     if (head.current) {
-      const look = hover || selected ? Math.sin(t * 2.4) * 0.14 : 0;
-      head.current.rotation.z = Math.sin(t * 0.8 + phase) * 0.05 + look * 0.4;
-      head.current.rotation.y =
-        (hover || selected ? Math.sin(t * 1.6) * 0.1 : 0) + (walking.current ? Math.sin(t * 9) * 0.06 : 0);
+      head.current.rotation.z = Math.sin(t * 0.8 + phase) * 0.05 + (hover || selected ? Math.sin(t * 2.4) * 0.06 : 0);
+      head.current.rotation.y = (hover || selected ? Math.sin(t * 1.6) * 0.12 : 0) + (walking ? Math.sin(t * 10) * 0.05 : 0);
+      // little nod while typing
+      head.current.rotation.x = on && !walking && !meeting ? 0.16 + Math.sin(t * 4.2 + phase) * 0.03 : 0.02;
     }
-    if (face.current) {
+    if (eyes.current) {
       const blink = Math.sin(t * 0.9 + phase * 2.3) > 0.985 ? 0.12 : 1;
-      face.current.scale.y += (blink - face.current.scale.y) * 0.5;
+      eyes.current.scale.y += (blink - eyes.current.scale.y) * 0.5;
     }
-    const typing = on && !walking.current && !meeting ? Math.sin(t * 8.5 + phase) * 0.22 : Math.sin(t * 1.2 + phase) * 0.06;
-    const swing = walking.current ? Math.sin(t * 9 + phase) * 0.38 : 0;
-    if (leftArm.current) leftArm.current.rotation.x = -0.85 + typing + swing;
-    if (rightArm.current) rightArm.current.rotation.x = -0.85 - typing + swing;
+    const typing = on && !walking && !meeting ? Math.sin(t * 9 + phase) * 0.2 : Math.sin(t * 1.2 + phase) * 0.05;
+    const swing = walking ? Math.sin(t * 10 + phase) * 0.4 : 0;
+    if (leftArm.current) leftArm.current.rotation.x = -0.7 + typing + swing;
+    if (rightArm.current) rightArm.current.rotation.x = -0.7 - typing - swing;
 
-
-    if (ring.current) {
-      ring.current.opacity = (selected ? 0.9 : hover ? 0.5 : 0.18) * (on ? 1 : 0.55);
-      const ringColor = failed ? "#e11d48" : waitingOk ? "#f59e0b" : info.color;
-      if (ring.current.color.getHexString() !== ringColor.slice(1)) ring.current.color.set(ringColor);
+    if (ringMat.current) {
+      ringMat.current.opacity = (selected ? 0.95 : hover ? 0.55 : 0.22) * (on ? 1 : 0.6);
+      const c = failed ? "#fb3b5c" : waitingOk ? "#f59e0b" : info.color;
+      if (ringMat.current.color.getHexString() !== c.slice(1)) ringMat.current.color.set(c);
     }
 
     if (plateMat.current && plateSprite.current) {
@@ -180,151 +183,147 @@ function Hoodie({ info, index }: { info: AgentInfo; index: number }) {
         nameplate.redraw(statusText);
       }
       const cam = state.camera as THREE.OrthographicCamera;
-      const w = (2.6 * 30) / (cam.zoom || 30);
+      const w = Math.min(2.7, (2.5 * 36) / (cam.zoom || 36));
       plateSprite.current.scale.set(w, w * 0.233, 1);
     }
-    void prevState;
   });
 
-  const suit = info.color;
+  const accent = info.color;
 
   return (
     <group
       ref={group}
-      position={[info.desk[0], 0, info.desk[1]]}
+      position={[info.desk[0], ROOM.SEAT_Y, info.desk[1]]}
       rotation-y={info.deskYaw}
-      onClick={(e) => {
-        e.stopPropagation();
-        select({ kind: "agent", id: info.id });
-      }}
-      onPointerOver={(e) => {
-        hoverCursor(e, true);
-        setHover(true);
-      }}
-      onPointerOut={(e) => {
-        hoverCursor(e, false);
-        setHover(false);
-      }}
+      onClick={(e) => { e.stopPropagation(); select({ kind: "agent", id: info.id }); }}
+      onPointerOver={(e) => { hoverCursor(e, true); setHover(true); }}
+      onPointerOut={(e) => { hoverCursor(e, false); setHover(false); }}
     >
-      <mesh position={[0, 0.015, 0]} rotation-x={-Math.PI / 2}>
-        <ringGeometry args={[0.42, 0.52, 32]} />
-        <meshBasicMaterial ref={ring} color={suit} transparent opacity={0.2} depthWrite={false} />
+      <mesh ref={ringMesh} position={[0, 0.02 - ROOM.SEAT_Y, 0]} rotation-x={-Math.PI / 2}>
+        <ringGeometry args={[0.36, 0.45, 32]} />
+        <meshBasicMaterial ref={ringMat} color={accent} transparent opacity={0.22} depthWrite={false} toneMapped={false} />
       </mesh>
 
-      <group ref={body} position={[0, 1.08, 0]}>
-        <mesh scale={[1, 0.95, 0.9]}>
-          <capsuleGeometry args={[0.34, 0.3, 6, 14]} />
-          <meshLambertMaterial color={suit} />
-        </mesh>
-        <mesh position={[0, -0.12, 0.26]} rotation-x={0.35}>
-          <boxGeometry args={[0.26, 0.13, 0.08]} />
-          <meshLambertMaterial color="#ffffff" />
-        </mesh>
-        {[-0.07, 0.07].map((x) => (
-          <mesh key={x} position={[x, 0.16, 0.3]}>
-            <cylinderGeometry args={[0.012, 0.012, 0.1, 6]} />
-            <meshLambertMaterial color="#ffffff" />
-          </mesh>
+      <group ref={body}>
+        {/* feet + stubby legs */}
+        {[-0.09, 0.09].map((x) => (
+          <group key={x}>
+            <mesh position={[x, 0.16, 0]}>
+              <cylinderGeometry args={[0.055, 0.065, 0.22, 10]} />
+              <meshStandardMaterial color="#c9ccd6" roughness={0.6} />
+            </mesh>
+            <mesh position={[x, 0.045, 0.04]} castShadow>
+              <sphereGeometry args={[0.085, 10, 8]} />
+              <meshStandardMaterial color="#2b2f3d" roughness={0.7} />
+            </mesh>
+          </group>
         ))}
 
-        <group ref={head} position={[0, 0.52, -0.02]}>
-          <mesh>
-            <sphereGeometry args={[0.28, 18, 14]} />
-            <meshLambertMaterial color={suit} />
+        {/* glossy white body */}
+        <mesh position={[0, 0.52, 0]} scale={[1, 1.02, 0.88]} castShadow>
+          <capsuleGeometry args={[0.26, 0.22, 8, 18]} />
+          <meshStandardMaterial color="#ffffff" roughness={0.38} />
+        </mesh>
+        {/* chest panel + glowing core in the agent color */}
+        <mesh position={[0, 0.52, 0.215]} rotation-x={0.12}>
+          <boxGeometry args={[0.2, 0.24, 0.05]} />
+          <meshStandardMaterial color="#232838" roughness={0.45} />
+        </mesh>
+        <mesh position={[0, 0.56, 0.245]}>
+          <circleGeometry args={[0.045, 14]} />
+          <meshBasicMaterial color={accent} toneMapped={false} />
+        </mesh>
+        {/* neck ring (identifies the agent from behind) */}
+        <mesh position={[0, 0.79, 0]} rotation-x={Math.PI / 2}>
+          <torusGeometry args={[0.15, 0.042, 10, 22]} />
+          <meshStandardMaterial color={accent} roughness={0.55} />
+        </mesh>
+
+        {/* head: white helmet + dark visor + glowing eyes */}
+        <group ref={head} position={[0, 1.0, 0]}>
+          <mesh castShadow>
+            <sphereGeometry args={[0.27, 22, 18]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.3} />
           </mesh>
-          <mesh position={[0, 0.06, -0.05]} rotation-x={-0.55}>
-            <torusGeometry args={[0.22, 0.09, 10, 20]} />
-            <meshLambertMaterial color={suit} />
+          <mesh position={[0, -0.01, 0.13]} scale={[0.95, 0.78, 0.62]}>
+            <sphereGeometry args={[0.24, 20, 16]} />
+            <meshStandardMaterial color="#141926" roughness={0.22} metalness={0.25} />
           </mesh>
-          <mesh ref={face} position={[0, 0, 0.235]}>
-            <circleGeometry args={[0.165, 20]} />
-            <meshBasicMaterial map={faceTex} toneMapped={false} />
+          <group ref={eyes} position={[0, 0.03, 0.272]}>
+            {[-0.075, 0.075].map((x) => (
+              <mesh key={x} position={[x, 0, 0]}>
+                <capsuleGeometry args={[0.021, 0.045, 4, 8]} />
+                <meshBasicMaterial color={accent} toneMapped={false} />
+              </mesh>
+            ))}
+          </group>
+          <mesh position={[0, -0.085, 0.266]}>
+            <boxGeometry args={[0.07, 0.016, 0.01]} />
+            <meshBasicMaterial color={accent} toneMapped={false} transparent opacity={0.75} />
+          </mesh>
+          {/* ear caps + antenna */}
+          {[-0.265, 0.265].map((x) => (
+            <mesh key={x} position={[x, 0, 0]} rotation-z={Math.PI / 2}>
+              <cylinderGeometry args={[0.07, 0.07, 0.055, 12]} />
+              <meshStandardMaterial color={accent} roughness={0.5} />
+            </mesh>
+          ))}
+          <mesh position={[0, 0.3, 0]}>
+            <cylinderGeometry args={[0.014, 0.014, 0.12, 6]} />
+            <meshStandardMaterial color="#9aa0ae" roughness={0.4} metalness={0.5} />
+          </mesh>
+          <mesh position={[0, 0.39, 0]}>
+            <sphereGeometry args={[0.042, 10, 8]} />
+            <meshBasicMaterial color={accent} toneMapped={false} />
           </mesh>
         </group>
 
-        <group ref={leftArm} position={[-0.3, 0.05, 0.12]}>
-          <mesh position={[0, -0.12, 0.05]} rotation-x={-0.4}>
-            <capsuleGeometry args={[0.085, 0.2, 5, 10]} />
-            <meshLambertMaterial color={suit} />
+        {/* arms */}
+        <group ref={leftArm} position={[-0.28, 0.66, 0.02]}>
+          <mesh position={[0, -0.11, 0.03]} rotation-x={-0.35} castShadow>
+            <capsuleGeometry args={[0.065, 0.16, 5, 10]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.4} />
           </mesh>
-          <mesh position={[0, -0.24, 0.13]}>
-            <sphereGeometry args={[0.075, 10, 8]} />
-            <meshLambertMaterial color="#ffffff" />
-          </mesh>
-        </group>
-        <group ref={rightArm} position={[0.3, 0.05, 0.12]}>
-          <mesh position={[0, -0.12, 0.05]} rotation-x={-0.4}>
-            <capsuleGeometry args={[0.085, 0.2, 5, 10]} />
-            <meshLambertMaterial color={suit} />
-          </mesh>
-          <mesh position={[0, -0.24, 0.13]}>
-            <sphereGeometry args={[0.075, 10, 8]} />
-            <meshLambertMaterial color="#ffffff" />
+          <mesh position={[0, -0.22, 0.09]}>
+            <sphereGeometry args={[0.06, 10, 8]} />
+            <meshStandardMaterial color="#2b2f3d" roughness={0.6} />
           </mesh>
         </group>
-
-        {[-0.12, 0.12].map((x) => (
-          <mesh key={x} position={[x, -0.62, 0.14]}>
-            <sphereGeometry args={[0.085, 10, 8]} />
-            <meshLambertMaterial color="#ffffff" />
+        <group ref={rightArm} position={[0.28, 0.66, 0.02]}>
+          <mesh position={[0, -0.11, 0.03]} rotation-x={-0.35} castShadow>
+            <capsuleGeometry args={[0.065, 0.16, 5, 10]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.4} />
           </mesh>
-        ))}
+          <mesh position={[0, -0.22, 0.09]}>
+            <sphereGeometry args={[0.06, 10, 8]} />
+            <meshStandardMaterial color="#2b2f3d" roughness={0.6} />
+          </mesh>
+        </group>
       </group>
 
-      <sprite ref={plateSprite} position={[0, 2.18, 0]} scale={[2.6, 0.6, 1]}>
+      <sprite ref={plateSprite} position={[0, 1.62, 0]} scale={[2.5, 0.58, 1]}>
         <spriteMaterial ref={plateMat} map={nameplate.tex} transparent depthWrite={false} />
       </sprite>
+
+      {/* generous invisible hit area (robots are small + partly behind chairs) */}
+      <mesh
+        position={[0, 0.75, 0]}
+        visible={false}
+        onClick={(e) => { e.stopPropagation(); select({ kind: "agent", id: info.id }); }}
+        onPointerOver={(e) => { hoverCursor(e, true); setHover(true); }}
+        onPointerOut={(e) => { hoverCursor(e, false); setHover(false); }}
+      >
+        <cylinderGeometry args={[0.48, 0.48, 1.6, 10]} />
+      </mesh>
     </group>
   );
-}
-
-/** Shared sleepy-cute face: oval eyes + sparkles + blush + smile. */
-let faceTexture: THREE.Texture | null = null;
-function getFaceTexture() {
-  if (faceTexture) return faceTexture;
-  const canvas = document.createElement("canvas");
-  canvas.width = 128;
-  canvas.height = 128;
-  const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "#1a1e3a";
-  ctx.beginPath();
-  ctx.arc(64, 64, 62, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#ffffff";
-  for (const ex of [42, 86]) {
-    ctx.beginPath();
-    ctx.ellipse(ex, 58, 9, 13, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.fillStyle = "#8fd0ff";
-  for (const ex of [45, 89]) {
-    ctx.beginPath();
-    ctx.arc(ex, 54, 3.4, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.fillStyle = "rgba(255,130,150,0.75)";
-  for (const ex of [28, 100]) {
-    ctx.beginPath();
-    ctx.ellipse(ex, 76, 8, 5, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 4;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.arc(64, 72, 12, 0.25 * Math.PI, 0.75 * Math.PI);
-  ctx.stroke();
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  faceTexture = tex;
-  return tex;
 }
 
 export function Agents() {
   return (
     <group>
       {AGENTS.map((a, i) => (
-        <Hoodie key={a.id} info={a} index={i} />
+        <Robot key={a.id} info={a} index={i} />
       ))}
     </group>
   );

@@ -9,9 +9,9 @@ export const Route = createFileRoute("/hq")({
       {
         name: "description",
         content:
-          "Cozy isometric 3D studio of CLIPYARD, an autonomous clip factory run by 6 hoodie AI agents on a 9-to-5 shift — with their diecast fleet on the garage shelf.",
+          "Glass-box isometric 3D diorama of CLIPYARD, an autonomous clip factory run by 6 white robot AI agents on a 9-to-5 shift — desk pods, glass meeting room, and a diecast crew garage.",
       },
-      { name: "theme-color", content: "#eef0fb" },
+      { name: "theme-color", content: "#0d1120" },
     ],
   }),
 });
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/hq")({
 function HqPage() {
   return (
     <>
-      <div className="fixed inset-0 z-0 bg-gradient-to-b from-[#eef0fb] via-[#e9ebfa] to-[#e4e7f8]" />
+      <div className="fixed inset-0 z-0 bg-[#0d1120]" />
       <HqExperience />
     </>
   );

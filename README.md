@@ -203,3 +203,51 @@ krem, wainscot lembut. QA headless hijau (HUD + siang/malam/standup/360°).
   agen "rehat" nyemplung tembok kaca; tinggi duduk per-spot (`loungeY`)
 
 
+
+---
+
+# Fase 5 — Redesign total "glass diorama" (mengikuti referensi)
+
+Seluruh scene dirombak mengikuti render referensi (diorama kantor kaca di
+atas latar navy gelap — lihat `preview-redesign.jpg`):
+
+- **Diorama kompak 16×12, 2 dinding saja**: dinding barat berisi 3 jendela
+  skyline malam, dinding utara berisi TV meeting + whiteboard pipeline +
+  sign CLIPYARD + lampu tripod di sudut apex. Sisi selatan/timur terbuka
+  (cutaway), lantai kayu oak hangat di atas slab navy gelap yang melayang.
+- **Dua ruang kaca rangka hitam** di sisi timur: meeting room (utara, meja
+  6 kursi + TV live) dan ruang rehat (selatan, sofa + beanbag + bantal
+  lantai), lengkap dengan pintu geser sungguhan — robot ber-route lewat
+  pintu via waypoint queue, tidak menembus kaca.
+- **3 pod meja berpasangan** (back-to-back, 6 workstation) + 1 pod hot-desk
+  kosong seperti referensi; monitor menghadap penggunanya (punggung monitor
+  hitam ke kamera di baris jauh), pedestal abu, kursi abu ergonomis.
+- **Robot putih menggantikan hoodie**: helm glossy + visor gelap bermata
+  menyala warna agen, ear-cap/antena/ring leher/chest-light warna agen agar
+  identitas tetap terbaca dari segala sudut. Diecast CREW GARAGE kini di
+  credenza bawah jendela; kucing kantor tetap berkeliaran.
+- **Lighting sinematik**: MeshStandardMaterial + ACES tone mapping, satu
+  key light dengan soft shadow map, fill hangat dari arah kamera, dan 4
+  point light lampu (apex/meeting/lounge/open) yang menyala mengikuti
+  faktor malam. Default mode kini **Gelap** agar tampilan pertama = referensi
+  (crew tetap on-shift jam 10:30; Terang/Otomatis tetap tersedia).
+- **Kamera isometrik terkunci** (azimuth ±38° dari sudut SE, pitch & zoom
+  ter-clamp) — tidak ada lagi dinding fading 360°.
+- **HUD tema gelap** (panel kaca navy + aksen amber) agar menyatu dengan
+  panggung; Approval Inbox dipindah ke kanan-bawah (sebelumnya bisa
+  overflow keluar layar). Semua fitur data dipertahankan: FloorSnapshot
+  SIM/LIVE n8n, approvals, standup 13:00, feed, ambience opsional.
+
+Denah & konstanta lantai kini terpusat di `src/lib/hq-data.ts`
+(`ROOM`, `PODS`, `MEETING_SEATS`, `CREDENZA`) dan dipakai bersama oleh
+`world.tsx`, `agents.tsx`, dan `sky.tsx`.
+
+Bukti visual: `screenshots/redesign-glass-*.png` (malam, siang, standup).
+
+Polish 5b: tombol **Sembunyikan UI** (atau tombol `H`) menghilangkan semua
+panel untuk tampilan diorama bersih ala referensi (bagus untuk screenshot /
+layar tampil) — pill kecil "Tampilkan UI" mengembalikannya; tombol
+**Sudut awal** kini juga memulihkan zoom fit responsif, dan tinggi duduk
+sofa/bantal lantai di ruang rehat diselaraskan ke furniturnya.
+Bukti: `screenshots/redesign-glass-clean*.png` (tanpa HUD, malam & siang —
+juga dipakai landing page).
