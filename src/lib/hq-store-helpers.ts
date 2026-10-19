@@ -33,6 +33,6 @@ export function timeAgo(ts: number, now = Date.now()) {
   const s = Math.max(0, Math.round((now - ts) / 1000));
   if (s < 60) return "baru";
   const m = Math.round(s / 60);
-  if (m < 60) return `${m}m`;
-  return `${Math.round(m / 60)}j`;
+  if (m < 60) return `${m} mnt`;
+  return `${Math.round(m / 60)} jam`;
 }

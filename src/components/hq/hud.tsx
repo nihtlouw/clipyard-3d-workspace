@@ -79,15 +79,13 @@ export function HqHud() {
         <TopBar />
         <ViewControls />
         <ActivityFeed />
-        <ClockPanel />
-        <BacklogPanel />
-        <ApprovalInbox />
+        <RightRail />
         <AgentCards />
         <DetailCard />
       </div>
       {/* Flexible overlay hint */}
-      <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-4 py-1 text-[10px] font-medium text-white/80 backdrop-blur-md lg:hidden">
-        Seret • Putar • Zoom • Klik robot
+      <div className="pointer-events-none absolute bottom-[6.75rem] left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#11162a]/55 px-3.5 py-1 text-[9.5px] font-semibold text-white/65 backdrop-blur-md lg:hidden">
+        Seret untuk memutar · cubit untuk zoom · ketuk robot
       </div>
     </div>
   );
@@ -186,6 +184,7 @@ function DashMenu() {
 /* ---------------------------------- top bar + stats ---------------------------------- */
 
 function TopBar() {
+  const activeAgents = useHqStore((s) => Object.values(s.profiles).filter((p) => p.enabled).length);
   return (
     <div className="pointer-events-none absolute left-2 top-2 sm:left-3 sm:top-3 flex w-auto items-start gap-2">
       <div className="pointer-events-auto flex max-w-[calc(100vw-1rem)] items-center gap-2 rounded-2xl border border-white/10 bg-[#11162a]/88 px-3 py-2 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl transition hover:border-white/20 hover:bg-[#1a2140]/95 sm:px-3.5 sm:py-2.5">
@@ -248,7 +247,6 @@ function StatTile({ label, value, accent }: { label: string; value: string; acce
 
 function StatsBar() {
   const stats = useHqStore((s) => s.stats);
-  const jobs = useHqStore((s) => s.jobs);
   const hour = useHqStore((s) => s.hour);
   const [, force] = useReducer((x: number) => x + 1, 0);
 
@@ -257,7 +255,6 @@ function StatsBar() {
     return () => window.clearInterval(id);
   }, [force]);
 
-  const running = jobs.filter((j) => j.status === "running").length;
   const tokensOut = stats.tokensOut ?? stats.clipsShipped * 137;
   const wib = new Date().toLocaleTimeString("id-ID", {
     timeZone: "Asia/Jakarta",
@@ -271,8 +268,8 @@ function StatsBar() {
   return (
     <div className="pointer-events-auto absolute right-2 top-[4.5rem] hidden grid-cols-2 gap-1.5 min-[640px]:grid sm:right-3 sm:top-[4.6rem] sm:grid-cols-3 md:top-14 lg:top-[4.4rem]">
       <StatTile label="JAM WIB" value={wib} />
+      <StatTile label="KLIP TERKIRIM" value={formatShort(stats.clipsShipped)} accent="#0ea5e9" />
       <StatTile label="TOKEN KELUAR" value={formatShort(tokensOut)} />
-      <StatTile label="TOKEN DIPROSES" value={running ? formatShort(running * 1400) : "0"} accent={running ? "#0ea5e9" : undefined} />
       <StatTile label="RAPAT BERIKUTNYA" value={meeting ? "SEKARANG" : "13.00"} accent={meeting ? "#34d399" : undefined} />
       <StatTile label="AKSI" value={formatShort(useHqStore((s) => s.actions))} />
       <StatTile label="SESI AKTIF" value={`${AGENTS.filter(() => isOnShift(hour)).length}/6`} />
@@ -316,65 +313,44 @@ function ViewControls() {
     { id: "night", label: "Gelap", icon: <Moon className="h-3 w-3" /> },
   ];
 
+  const toggleCls = (active: boolean) =>
+    cn(
+      "inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[10.5px] font-bold transition-colors",
+      active ? "bg-[#f5b45e] text-[#20160a]" : "text-hq-muted hover:bg-white/[0.07] hover:text-hq-text",
+    );
+  const iconBtnCls =
+    "inline-flex h-7 w-7 items-center justify-center rounded-full text-hq-muted transition-colors hover:bg-white/[0.07] hover:text-hq-text";
+
   return (
     <>
       <StatsBar />
-      <div className="pointer-events-auto absolute left-1/2 top-[3.5rem] flex -translate-x-1/2 flex-wrap items-center justify-center gap-1.5 sm:top-3 md:top-[3.2rem]">
-        <div className="flex items-center rounded-full border border-hq-line bg-hq-panel p-1 shadow-sm backdrop-blur-xl">
-          {modes.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => setMode(m.id)}
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10.5px] font-bold transition-colors",
-                mode === m.id ? "bg-[#f5b45e] text-[#20160a]" : "text-hq-muted hover:text-hq-text",
-              )}
-            >
-              {m.icon}
-              {m.label}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={() => setLabels(!labels)}
-          className={cn(
-            "rounded-full border px-3 py-1.5 text-[10.5px] font-bold shadow-sm backdrop-blur-xl transition-colors",
-            labels ? "border-transparent bg-[#f5b45e] text-[#20160a]" : "border-hq-line bg-hq-panel text-hq-muted hover:text-hq-text",
-          )}
-        >
+      <div className="pointer-events-auto absolute left-1/2 top-[3.5rem] flex max-w-[calc(100vw-1rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-0.5 rounded-[1.35rem] border border-hq-line bg-hq-panel p-1 shadow-sm backdrop-blur-xl sm:top-3 sm:rounded-full md:top-[3.2rem]">
+        {modes.map((m) => (
+          <button key={m.id} onClick={() => setMode(m.id)} className={toggleCls(mode === m.id)} title={`Pencahayaan ${m.label.toLowerCase()}`} aria-label={`Pencahayaan ${m.label.toLowerCase()}`}>
+            {m.icon}
+            <span className="hidden min-[430px]:inline">{m.label}</span>
+          </button>
+        ))}
+        <span className="mx-1 hidden h-4 w-px bg-white/12 sm:block" />
+        <button onClick={() => setLabels(!labels)} className={toggleCls(labels)} aria-pressed={labels} title="Nama agen di atas robot">
           Label
         </button>
-        <button
-          onClick={() => setAutoOrbit(!autoOrbit)}
-          className={cn(
-            "rounded-full border px-3 py-1.5 text-[10.5px] font-bold shadow-sm backdrop-blur-xl transition-colors",
-            autoOrbit ? "border-transparent bg-[#f5b45e] text-[#20160a]" : "border-hq-line bg-hq-panel text-hq-muted hover:text-hq-text",
-          )}
-        >
+        <button onClick={() => setAutoOrbit(!autoOrbit)} className={toggleCls(autoOrbit)} aria-pressed={autoOrbit} title="Kamera bergoyang pelan otomatis">
           Auto-sway
         </button>
-        <button
-          onClick={requestResetView}
-          className="inline-flex items-center gap-1 rounded-full border border-hq-line bg-hq-panel px-3 py-1.5 text-[10.5px] font-bold text-hq-muted shadow-sm backdrop-blur-xl transition-colors hover:text-hq-text"
-        >
-          <RotateCcw className="h-3 w-3" /> Sudut awal
+        <span className="mx-1 hidden h-4 w-px bg-white/12 sm:block" />
+        <button onClick={requestResetView} className={iconBtnCls} title="Sudut awal" aria-label="Sudut awal">
+          <RotateCcw className="h-3.5 w-3.5" />
         </button>
-        <button
-          onClick={toggleFullscreen}
-          className="hidden items-center gap-1 rounded-full border border-hq-line bg-hq-panel px-3 py-1.5 text-[10.5px] font-bold text-hq-muted shadow-sm backdrop-blur-xl transition-colors hover:text-hq-text md:inline-flex"
-        >
-          {full ? <Minimize className="h-3 w-3" /> : <Maximize className="h-3 w-3" />} Layar penuh
+        <button onClick={toggleFullscreen} className={cn(iconBtnCls, "hidden md:inline-flex")} title="Layar penuh (F)" aria-label="Layar penuh">
+          {full ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
         </button>
-        <button
-          onClick={() => setHudHidden(true)}
-          className="inline-flex items-center gap-1 rounded-full border border-hq-line bg-hq-panel px-3 py-1.5 text-[10.5px] font-bold text-hq-muted shadow-sm backdrop-blur-xl transition-colors hover:text-hq-text"
-          title="Sembunyikan semua panel (tombol H)"
-        >
-          <EyeOff className="h-3 w-3" /> Sembunyikan UI
+        <button onClick={() => setHudHidden(true)} className={iconBtnCls} title="Sembunyikan semua panel (H)" aria-label="Sembunyikan UI">
+          <EyeOff className="h-3.5 w-3.5" />
         </button>
       </div>
-      <p className="pointer-events-none absolute bottom-[7rem] left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-full bg-white/10 px-3 py-1 text-[9.5px] font-semibold text-[#eef1ff]/70 shadow-sm backdrop-blur-md lg:block">
-        seret • geser sudut • scroll/pinch zoom • klik robot • F layar penuh • H sembunyikan UI
+      <p className="pointer-events-none absolute bottom-[7rem] left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-full bg-[#11162a]/55 px-3 py-1 text-[9px] font-semibold text-white/55 backdrop-blur-md lg:block">
+        seret untuk memutar · scroll untuk zoom · klik robot untuk panel kerja · H sembunyikan UI
       </p>
     </>
   );
@@ -384,6 +360,7 @@ function ViewControls() {
 
 function ActivityFeed() {
   const feed = useHqStore((s) => s.feed);
+  const profiles = useHqStore((s) => s.profiles);
   const [filter, setFilter] = useState<string | null>(null);
   const [, force] = useReducer((x: number) => x + 1, 0);
 
@@ -392,52 +369,78 @@ function ActivityFeed() {
     return () => window.clearInterval(id);
   }, [force]);
 
-  const shown = feed.filter((e) => !filter || e.color === filter).slice(0, 9);
+  const shown = feed.filter((e) => !filter || e.color === filter).slice(0, 12);
 
   return (
     <div className="pointer-events-auto absolute left-2 top-[10rem] hidden w-[220px] rounded-2xl border border-white/10 bg-[#11162a]/88 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl lg:left-3 lg:top-[12.5rem] lg:block lg:w-[248px]">
-      <p className="text-[10px] font-bold tracking-[0.14em] text-[#98a1c4]">AKTIVITAS LANGSUNG</p>
-      <div className="mt-1.5 flex flex-wrap gap-1">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-bold tracking-[0.14em] text-hq-muted">AKTIVITAS LANGSUNG</p>
+        <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-300">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-300" /> live
+        </span>
+      </div>
+      <div className="hq-no-scrollbar -mx-1 mt-2 flex flex-nowrap gap-1 overflow-x-auto px-1 pb-0.5">
         <button
           onClick={() => setFilter(null)}
           className={cn(
-            "rounded-full border px-2 py-0.5 text-[9px] font-bold transition-colors",
+            "shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold transition-colors",
             filter === null ? "border-transparent bg-[#f5b45e] text-[#20160a]" : "border-hq-line text-hq-muted hover:text-hq-text",
           )}
         >
           Semua
         </button>
-        {AGENTS.map((a) => (
-          <button
-            key={a.id}
-            onClick={() => setFilter(filter === a.color ? null : a.color)}
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold transition-colors",
-              filter === a.color ? "border-transparent" : "border-hq-line text-hq-muted hover:text-hq-text",
-            )}
-            style={filter === a.color ? { backgroundColor: a.color, color: "#fff" } : undefined}
-          >
-            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: filter === a.color ? "#fff" : a.color }} />
-            {a.name}
-          </button>
-        ))}
+        {AGENTS.map((a) => {
+          const p = profiles[a.id];
+          const active = filter === p.color;
+          return (
+            <button
+              key={a.id}
+              onClick={() => setFilter(active ? null : p.color)}
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold transition-colors",
+                active ? "border-transparent" : "border-hq-line text-hq-muted hover:text-hq-text",
+              )}
+              style={active ? { backgroundColor: p.color, color: "#fff" } : undefined}
+            >
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: active ? "#fff" : p.color }} />
+              {p.name}
+            </button>
+          );
+        })}
       </div>
-      <div className="mt-2 max-h-[32vh] space-y-1.5 overflow-y-auto pr-1 sm:max-h-[38vh]">
+      <div className="hq-scroll mt-2 max-h-[32vh] space-y-2 overflow-y-auto pr-2 sm:max-h-[36vh]">
         {shown.map((e) => (
           <div key={e.id} className="flex items-start gap-1.5">
             <span
               className="mt-1 h-2 w-2 shrink-0 rounded-full"
-              style={{ backgroundColor: e.color ?? "#7a81a6" }}
+              style={{ backgroundColor: e.color ?? "#7a81a6", boxShadow: `0 0 6px ${e.color ?? "#7a81a6"}55` }}
             />
             <p className="min-w-0 flex-1 text-[10.5px] font-semibold leading-snug text-hq-text">
               {e.kind === "system" ? <Zap className="mr-0.5 inline h-3 w-3 text-hq-violet" /> : null}
               {e.text}
             </p>
-            <span className="shrink-0 text-[9px] font-semibold text-hq-muted">{timeAgo(e.ts)}</span>
+            <span className="shrink-0 pl-1 text-[9px] font-semibold whitespace-nowrap text-hq-muted">{timeAgo(e.ts)}</span>
           </div>
         ))}
-        {shown.length === 0 && <p className="py-2 text-[10.5px] font-medium text-hq-muted">Belum ada aktivitas.</p>}
+        {shown.length === 0 && <p className="py-2 text-[10.5px] font-medium text-hq-muted">Belum ada aktivitas untuk filter ini.</p>}
       </div>
+    </div>
+  );
+}
+
+/* ---------------------------------- right rail (clock → approvals → backlog) ---------------------------------- */
+
+/**
+ * One stacked column on the right edge so the clock, approval inbox and
+ * backlog can never overlap each other (they used to be independently
+ * positioned and collided whenever approvals piled up).
+ */
+function RightRail() {
+  return (
+    <div className="hq-scroll pointer-events-auto absolute right-2 top-[9.8rem] hidden max-h-[calc(100dvh-17.5rem)] w-[220px] flex-col gap-2 overflow-y-auto pb-1 pr-0.5 md:right-3 md:flex md:w-[236px] lg:top-[10.6rem]">
+      <ClockPanel />
+      <ApprovalInbox />
+      <BacklogPanel />
     </div>
   );
 }
@@ -455,7 +458,7 @@ function ClockPanel() {
   const shiftP = Math.min(1, Math.max(0, (hour - 9) / 8));
 
   return (
-    <div className="pointer-events-auto absolute right-2 top-[20rem] hidden w-[220px] rounded-2xl border border-white/10 bg-[#11162a]/88 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl md:right-3 md:block md:w-[236px] lg:top-[21.6rem]">
+    <div className="rounded-2xl border border-white/10 bg-[#11162a]/88 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl">
       <div className="flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.14em] text-hq-muted">
           <Clock3 className="h-3.5 w-3.5" /> JAM SIM
@@ -534,10 +537,10 @@ function ApprovalInbox() {
   };
 
   return (
-    <div className="pointer-events-auto absolute bottom-[8.5rem] right-2 hidden max-h-[46vh] w-[220px] overflow-y-auto rounded-2xl border border-[#f0d9a0]/40 bg-[#241b0e]/94 p-3 shadow-[0_18px_40px_-20px_rgba(180,83,9,0.5)] backdrop-blur-2xl md:right-3 md:block md:w-[236px]">
+    <div className="rounded-2xl border border-amber-300/35 bg-[#11162a]/92 p-3 shadow-[0_18px_40px_-20px_rgba(180,83,9,0.45)] ring-1 ring-amber-300/10 backdrop-blur-2xl">
       <div className="flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.14em]" style={{ color: AMBER }}>
-          <Inbox className="h-3.5 w-3.5" /> APPROVAL INBOX
+          <Inbox className="h-3.5 w-3.5" /> MENUNGGU OK DARIMU
         </span>
         <span
           className="flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-extrabold text-[#20160a]"
@@ -546,34 +549,42 @@ function ApprovalInbox() {
           {approvals.length}
         </span>
       </div>
-      <div className="mt-2 space-y-2">
+      <div className="hq-scroll mt-2.5 max-h-[min(252px,calc(100dvh-29rem))] min-h-[108px] space-y-2 overflow-y-auto pr-1.5">
         {approvals.map((a) => {
           const agent = profiles[a.agentId];
           const isBusy = busy === a.id;
           return (
-            <div key={a.id} className="rounded-xl border border-[#f0d9a0] bg-white/8 p-2.5">
+            <div key={a.id} className="rounded-xl border border-white/10 bg-white/[0.05] p-2.5">
               <div className="flex items-center gap-2">
                 <span
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold text-white"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[9px] font-extrabold text-white"
                   style={{ backgroundColor: agent?.color }}
                 >
-                  {agent?.name[0]}
+                  {agent?.name.slice(0, 2) ?? "?"}
                 </span>
-                <p className="min-w-0 flex-1 truncate text-[11.5px] font-extrabold text-hq-text">{a.title}</p>
+                <span className="min-w-0 flex-1 truncate text-[10px] font-extrabold tracking-wide text-hq-text">
+                  {agent?.name ?? a.agentId.toUpperCase()}
+                </span>
+                <span className="shrink-0 text-[9px] font-semibold text-hq-muted">
+                  {timeAgo(a.requestedAt)}
+                </span>
               </div>
-              {a.detail && <p className="mt-1 text-[10px] font-medium leading-snug text-hq-muted">{a.detail}</p>}
+              <p className="mt-1.5 line-clamp-2 text-[11.5px] font-bold leading-snug text-hq-text">{a.title}</p>
+              {a.detail && (
+                <p className="mt-0.5 line-clamp-2 text-[10px] font-medium leading-snug text-hq-muted">{a.detail}</p>
+              )}
               <div className="mt-2 flex items-center gap-1.5">
                 <button
                   disabled={isBusy}
                   onClick={() => decide(a, "approved")}
-                  className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#047857] py-1.5 text-[10.5px] font-bold text-white transition-transform hover:scale-[1.03] disabled:opacity-50"
+                  className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-emerald-600 py-1.5 text-[10.5px] font-bold text-white transition hover:bg-emerald-500 disabled:opacity-50"
                 >
                   <Check className="h-3.5 w-3.5" /> Setujui
                 </button>
                 <button
                   disabled={isBusy}
                   onClick={() => decide(a, "rejected")}
-                  className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#e11d48] py-1.5 text-[10.5px] font-bold text-white transition-transform hover:scale-[1.03] disabled:opacity-50"
+                  className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-rose-400/40 bg-rose-500/10 py-1.5 text-[10.5px] font-bold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50"
                 >
                   <X className="h-3.5 w-3.5" /> Tolak
                 </button>
@@ -582,9 +593,9 @@ function ApprovalInbox() {
           );
         })}
       </div>
-      {error && <p className="mt-1.5 text-[10px] font-semibold text-[#fb7185]">{error}</p>}
-      <p className="mt-1 text-[9px] font-medium leading-snug text-hq-muted">
-        Dibuka pipeline (n8n) via Floor API — keputusan langsung melanjutkan workflow.
+      {error && <p className="mt-1.5 text-[10px] font-semibold text-rose-300">{error}</p>}
+      <p className="mt-2 text-[9.5px] font-medium leading-snug text-hq-muted">
+        Keputusanmu langsung menjalankan langkah berikutnya.
       </p>
     </div>
   );
@@ -596,6 +607,7 @@ function BacklogPanel() {
   const jobs = useHqStore((s) => s.jobs);
   const approvals = useHqStore((s) => s.approvals);
   const profiles = useHqStore((s) => s.profiles);
+  const [open, setOpen] = useState(true);
 
   const deadline = useMemo(
     () =>
@@ -609,47 +621,61 @@ function BacklogPanel() {
   const agentOf = (id: string) => profiles[id as keyof typeof profiles];
 
   return (
-    <div className="pointer-events-auto absolute right-2 top-[32rem] hidden w-[220px] rounded-2xl border border-white/10 bg-[#11162a]/88 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl md:right-3 md:block md:w-[236px] lg:top-[30rem]">
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] font-bold tracking-[0.14em] text-hq-muted">BACKLOG</p>
-        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-hq-line/70 px-1.5 text-[10px] font-extrabold text-hq-text">
-          {count}
+    <div className="rounded-2xl border border-white/10 bg-[#11162a]/88 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between"
+        title={open ? "Lipat backlog" : "Buka backlog"}
+      >
+        <span className="text-[10px] font-bold tracking-[0.14em] text-hq-muted">BACKLOG</span>
+        <span className="flex items-center gap-1.5">
+          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-hq-line/70 px-1.5 text-[10px] font-extrabold text-hq-text">
+            {count}
+          </span>
+          <ChevronDown className={cn("h-3.5 w-3.5 text-hq-muted transition-transform", !open && "-rotate-90")} />
         </span>
-      </div>
+      </button>
 
-      <p className="mt-2 text-[9px] font-bold tracking-[0.12em] text-[#fbbf24]">Deadline dekat · {deadline.length}</p>
-      <div className="mt-1 space-y-1">
-        {deadline.map((j) => {
-          const a = agentOf(j.agentId);
-          return (
-            <div key={j.jobId} className="flex items-start gap-1.5">
-              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: a?.color }} />
-              <p className="min-w-0 flex-1 truncate text-[10.5px] font-semibold leading-snug text-hq-text">{j.title}</p>
-              <span className="shrink-0 text-[9px] font-bold text-hq-muted">{j.status === "running" ? `${Math.round(j.progress * 100)}%` : " queued"}</span>
-            </div>
-          );
-        })}
-        {deadline.length === 0 && <p className="text-[10px] font-medium text-hq-muted">✓ Kosong — lantai bersih</p>}
-      </div>
+      {open && (
+        <>
+          <p className="mt-2.5 text-[9px] font-bold tracking-[0.12em] text-[#fbbf24]">Deadline dekat · {deadline.length}</p>
+          <div className="mt-1 space-y-1">
+            {deadline.map((j) => {
+              const a = agentOf(j.agentId);
+              return (
+                <div key={j.jobId} className="flex items-start gap-1.5">
+                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: a?.color }} />
+                  <p className="min-w-0 flex-1 truncate text-[10.5px] font-semibold leading-snug text-hq-text">{j.title}</p>
+                  <span className="shrink-0 text-[9px] font-bold text-hq-muted">{j.status === "running" ? `${Math.round(j.progress * 100)}%` : "antre"}</span>
+                </div>
+              );
+            })}
+            {deadline.length === 0 && <p className="text-[10px] font-medium text-hq-muted">Kosong — lantai bersih</p>}
+          </div>
 
-      <p className="mt-2.5 text-[9px] font-bold tracking-[0.12em] text-[#0ea5e9]">Nunggu owner · {approvals.length}</p>
-      <div className="mt-1 space-y-1">
-        {approvals.map((a) => (
-          <p key={a.id} className="truncate text-[10.5px] font-semibold leading-snug text-hq-text">
-            🔔 {a.title}
-          </p>
-        ))}
-        {approvals.length === 0 && <p className="text-[10px] font-medium text-hq-muted">✓ Tidak ada</p>}
-      </div>
+          <p className="mt-2.5 text-[9px] font-bold tracking-[0.12em] text-[#fbbf24]">Nunggu owner · {approvals.length}</p>
+          <div className="mt-1 space-y-1">
+            {approvals.map((a) => (
+              <div key={a.id} className="flex items-start gap-1.5">
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
+                <p className="min-w-0 flex-1 truncate text-[10.5px] font-semibold leading-snug text-hq-text">{a.title}</p>
+              </div>
+            ))}
+            {approvals.length === 0 && <p className="text-[10px] font-medium text-hq-muted">Tidak ada</p>}
+          </div>
 
-      <p className="mt-2.5 text-[9px] font-bold tracking-[0.12em] text-hq-muted">Ide / nanti · {IDEAS.length}</p>
-      <div className="mt-1 space-y-1">
-        {IDEAS.map((idea) => (
-          <p key={idea} className="truncate text-[10.5px] font-medium leading-snug text-hq-muted">
-            ☁︎ {idea}
-          </p>
-        ))}
-      </div>
+          <p className="mt-2.5 text-[9px] font-bold tracking-[0.12em] text-hq-muted">Ide / nanti · {IDEAS.length}</p>
+          <div className="mt-1 space-y-1">
+            {IDEAS.map((idea) => (
+              <div key={idea} className="flex items-start gap-1.5">
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-hq-muted/50" />
+                <p className="min-w-0 flex-1 truncate text-[10.5px] font-medium leading-snug text-hq-muted">{idea}</p>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -691,9 +717,7 @@ function AgentCards() {
               : on
                 ? a.task
                 : "Rehat di ruang rehat";
-        const agentActions = feed.filter((e) => e.color === p.color).length;
-        const tokens = a.clipsToday * 137 + Math.round((job?.progress ?? 0) * 1200);
-        const ctx = 28_000 + Math.round(a.progress * 62_000);
+        const pct = job && on && !meeting ? Math.round(job.progress * 100) : null;
         return (
           <button
             key={a.id}
@@ -716,15 +740,25 @@ function AgentCards() {
               </span>
             </div>
             <p className="mt-0.5 truncate text-[8px] font-medium leading-tight text-[#98a1c4] sm:mt-1 sm:text-[9.5px]">
-              {p.role} · {a.id === "akira" ? "Tim inti" : "Klip"}
+              {p.role}
             </p>
             <p className="mt-0.5 truncate text-[9px] font-bold leading-snug text-[#eef1ff] sm:mt-0.5 sm:text-[10.5px]">
-              {status.label === "KERJA" ? "▶ " : "▸ "}
               {task}
             </p>
-            <p className="mt-0.5 font-mono text-[7px] font-semibold text-[#98a1c4] sm:mt-1 sm:text-[8.5px]">
-              {agentActions} aksi · {formatShort(tokens)} tok · {formatShort(ctx)} ctx
-            </p>
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full transition-[width] duration-500"
+                  style={{
+                    width: pct !== null ? `${pct}%` : "0%",
+                    backgroundColor: failed ? "#e11d48" : p.color,
+                  }}
+                />
+              </div>
+              <span className="shrink-0 text-[8.5px] font-bold text-[#98a1c4]">
+                {pct !== null ? `${pct}%` : on ? "—" : "off"}
+              </span>
+            </div>
           </button>
         );
       })}
@@ -758,7 +792,7 @@ function DetailCard() {
   // Agent → the full Fase 6 work panel (jobs, results, tasks, config).
   if (agent) {
     return (
-      <div className="pointer-events-auto absolute bottom-[7.5rem] left-2 max-h-[calc(100vh-11rem)] w-[min(92vw,372px)] overflow-y-auto rounded-2xl border border-white/10 bg-[#11162a]/94 p-3.5 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.45)] backdrop-blur-2xl sm:left-3 lg:bottom-[9rem]">
+      <div className="hq-scroll pointer-events-auto absolute bottom-[7.5rem] left-2 max-h-[calc(100vh-11rem)] w-[min(92vw,372px)] overflow-y-auto rounded-2xl border border-white/10 bg-[#11162a]/94 p-3.5 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.45)] backdrop-blur-2xl sm:left-3 lg:bottom-[9rem]">
         <AgentWorkPanel agentId={agent.id} onClose={() => select(null)} />
       </div>
     );
