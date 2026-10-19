@@ -19,6 +19,7 @@ import {
 import { decideApproval } from "@/lib/hq-actions";
 import type { AgentId } from "@/lib/hq-data";
 import { submitJobToFloor } from "@/lib/hq-floor";
+import { agentActivity, fmtHourLabel } from "@/lib/hq-profiles";
 import { useHqStore } from "@/lib/hq-store";
 
 /**
@@ -35,6 +36,7 @@ export function AgentWorkPanel({
   onClose: () => void;
 }) {
   const profile = useHqStore((s) => s.profiles[agentId]);
+  const hour = useHqStore((s) => s.hour);
   const jobs = useHqStore((s) => s.jobs);
   const outputs = useHqStore((s) => s.outputs);
   const approvals = useHqStore((s) => s.approvals);
@@ -59,6 +61,7 @@ export function AgentWorkPanel({
     myJobs[0];
   const myApprovals = approvals.filter((a) => a.agentId === agentId);
   const myOutputs = outputs.filter((o) => o.agentId === agentId).slice(0, 8);
+  const act = agentActivity(profile, current, myApprovals.length > 0, hour);
 
   const assign = async () => {
     const title = taskTitle.trim();
@@ -126,6 +129,21 @@ export function AgentWorkPanel({
           </div>
           <div className="text-[12px] font-bold text-sky-300">{profile.role}</div>
           <p className="mt-0.5 text-[11.5px] leading-snug text-hq-muted">{profile.tagline}</p>
+          <p className="mt-1.5 flex items-start gap-1.5 text-[11px] font-semibold leading-snug">
+            <span
+              className="mt-1 h-2 w-2 shrink-0 rounded-full"
+              style={{ backgroundColor: act.color, boxShadow: `0 0 7px ${act.color}88` }}
+            />
+            <span>
+              <span style={{ color: act.color }}>{act.label}</span>
+              <span className="text-hq-muted"> — {act.reason}</span>
+              <span className="text-hq-muted">
+                {" "}· Mode: {profile.workMode === "schedule"
+                  ? `jadwal ${fmtHourLabel(profile.scheduleStart)}–${fmtHourLabel(profile.scheduleEnd)}`
+                  : "selalu aktif 24/7"}
+              </span>
+            </span>
+          </p>
         </div>
         <button
           type="button"

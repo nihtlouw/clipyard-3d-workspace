@@ -41,8 +41,8 @@ function LandingPage() {
                 <span className="text-[#6d28d9]">CLIPYARD</span>
               </h1>
               <p className="max-w-md text-[15.5px] font-medium leading-relaxed text-[#6b6b7a]">
-                Diorama kantor kaca isometrik 3D dengan 6 robot agen AI, jam simulasi 9–5,
-                pipeline hidup, dan armada diecast — hangat menyala di atas panggung navy gelap.
+                Diorama kantor kaca isometrik 3D dengan 6 robot agen AI yang bekerja 24/7
+                sesuai pengaturanmu, pipeline hidup, dan armada diecast — hangat menyala di atas panggung navy gelap.
               </p>
               <div className="flex flex-wrap items-center gap-3 pt-1">
                 <Link
@@ -106,8 +106,8 @@ function LandingPage() {
           />
           <FeatureCard
             icon={<Clock className="h-5 w-5 text-[#a78bfa]" />}
-            title="Jam Sim 9–5"
-            desc="Siklus shift, standup harian 13:00, dan perubahan pencahayaan otomatis mengikuti waktu."
+            title="Mode Kerja Fleksibel"
+            desc="Tiap agen bisa diatur selalu aktif 24/7, mengikuti jadwal jam tertentu, atau manual. Jam kantor 9–5 tinggal mode demo opsional — pekerjaan tidak pernah berhenti karenanya."
           />
           <FeatureCard
             icon={<ShieldCheck className="h-5 w-5 text-[#34d399]" />}

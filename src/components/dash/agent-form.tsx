@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Check, Plus, RotateCcw, X } from "lucide-react";
-import { AGENT_COLOR_SWATCHES, type AgentProfile } from "@/lib/hq-profiles";
+import { AGENT_COLOR_SWATCHES, fmtHourLabel, type AgentProfile, type WorkMode } from "@/lib/hq-profiles";
 import { Field, btnGhost, btnPrimary, inputCls } from "@/components/dash/ui";
 
 /**
@@ -29,6 +29,9 @@ export function AgentForm({
   const [webhookUrl, setWebhookUrl] = useState(profile.webhookUrl);
   const [enabled, setEnabled] = useState(profile.enabled);
   const [autoApprove, setAutoApprove] = useState(profile.autoApprove);
+  const [workMode, setWorkMode] = useState<WorkMode>(profile.workMode);
+  const [scheduleStart, setScheduleStart] = useState(profile.scheduleStart);
+  const [scheduleEnd, setScheduleEnd] = useState(profile.scheduleEnd);
 
   const submit = () => {
     onSave({
@@ -42,6 +45,9 @@ export function AgentForm({
       webhookUrl: webhookUrl.trim().slice(0, 300),
       enabled,
       autoApprove,
+      workMode,
+      scheduleStart,
+      scheduleEnd,
     });
   };
 
@@ -127,6 +133,57 @@ export function AgentForm({
       <Field label="Webhook agen (opsional)" hint="URL webhook n8n khusus agen ini — tombol “Picu webhook” di panel kerja akan mengirim POST ke sini. Kosongkan bila tidak dipakai.">
         <input className={inputCls} value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} placeholder="https://n8n…/webhook/akira" inputMode="url" />
       </Field>
+
+      <Field
+        label="Mode kerja"
+        hint={
+          workMode === "always"
+            ? "Agen bekerja kapan pun ada tugas — AI tidak butuh jam kantor. Mode Demo 9–5 di panel jam hanya mengatur animasinya."
+            : "Di luar jendela ini agen beristirahat (tampil “Di luar jadwal”). Mengikuti jam sim studio."
+        }
+      >
+        <div className="grid grid-cols-2 gap-2">
+          {(
+            [
+              { id: "always" as WorkMode, title: "Selalu aktif (24/7)", desc: "Kerja kapan pun ada tugas" },
+              { id: "schedule" as WorkMode, title: "Ikuti jadwal", desc: "Hanya pada jam tertentu" },
+            ]
+          ).map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setWorkMode(opt.id)}
+              className={`rounded-xl border p-2.5 text-left transition ${
+                workMode === opt.id
+                  ? "border-sky-400/70 bg-sky-400/10"
+                  : "border-white/12 bg-white/5 hover:bg-white/8"
+              }`}
+            >
+              <div className="text-[12px] font-extrabold">{opt.title}</div>
+              <div className="mt-0.5 text-[10.5px] leading-snug text-hq-muted">{opt.desc}</div>
+            </button>
+          ))}
+        </div>
+      </Field>
+
+      {workMode === "schedule" && (
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Mulai kerja">
+            <select className={inputCls} value={scheduleStart} onChange={(e) => setScheduleStart(Number(e.target.value))}>
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>{fmtHourLabel(h)}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Selesai kerja">
+            <select className={inputCls} value={scheduleEnd} onChange={(e) => setScheduleEnd(Number(e.target.value))}>
+              {Array.from({ length: 25 }, (_, h) => (
+                <option key={h} value={h}>{fmtHourLabel(h)}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <label className="flex cursor-pointer items-center justify-between gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2">
