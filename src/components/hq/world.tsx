@@ -37,19 +37,19 @@ import {
 
 const INK = "#232746";
 const NAVY = "#3a4070";
-const WALL = "#f6f5fb";
-const WAINSCOT = "#e9e7f6";
+const WALL = "#fdfcfb"; // warmer white like reference
+const WAINSCOT = "#f3f1e8"; // warm cream band
 const WHITE = "#ffffff";
-const WOOD = "#d8a97a";
-const WOOD_DARK = "#7c6248";
-const TERRA = "#cf7350";
-const SAGE = "#87a98c";
-const MUSTARD = "#e0a93f";
-const CARDBOARD = "#d9b48c";
-const GREEN1 = "#57ab72";
-const GREEN2 = "#6fbf85";
-const GLASS = "#9fb4d8";
-const CREAM = "#efe6d4";
+const WOOD = "#cfa272"; // lighter warm oak
+const WOOD_DARK = "#8b6f47"; // lighter dark wood
+const TERRA = "#c0704d"; // softer terracotta
+const SAGE = "#8aaa82"; // softer sage
+const MUSTARD = "#dcb55e"; // softer mustard
+const CARDBOARD = "#dbc0a0"; // lighter cardboard
+const GREEN1 = "#6fb07a"; // softer green
+const GREEN2 = "#82c88a"; // softer green
+const GLASS = "#b8cce8"; // cooler light blue glass
+const CREAM = "#f5ead6"; // warmer cream
 
 /* ---------------------------------- geometry helpers ---------------------------------- */
 
@@ -81,6 +81,7 @@ const FLOOR_D = 19;
 const WALL_H = 5.6;
 const DESK_ROWS = [-4.2, 0.6];
 const DESK_XS = [-7.5, -2.5, 2.5];
+const GLASS_OPACITY = 0.22; // more visible glass like reference
 
 /* ---------------------------------- shell (walls, windows, doors) ---------------------------------- */
 
@@ -423,7 +424,7 @@ function useRoomMaterials() {
       glass: new THREE.MeshBasicMaterial({
         color: GLASS,
         transparent: true,
-        opacity: 0.16,
+        opacity: 0.35, // more visible glass like reference
         depthWrite: false,
       }),
     };
