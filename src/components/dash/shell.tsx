@@ -61,9 +61,13 @@ export function DashShell({
           </div>
           <div className="ml-auto flex items-center gap-2">
             {pending > 0 && (
-              <span className="rounded-full bg-amber-400/20 px-2.5 py-1 text-[11px] font-bold text-amber-300">
-                {pending} approval menunggu
-              </span>
+              <Link
+                to="/aktivitas"
+                className="rounded-full bg-amber-400/20 px-2.5 py-1 text-[11px] font-bold text-amber-300 transition hover:bg-amber-400/30"
+                title="Buka halaman Aktivitas untuk memutuskan"
+              >
+                {pending} approval menunggu →
+              </Link>
             )}
             <span
               className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-extrabold tracking-wide ${

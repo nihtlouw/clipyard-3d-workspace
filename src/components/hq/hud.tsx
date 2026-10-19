@@ -29,7 +29,7 @@ import { AgentWorkPanel } from "@/components/dash/agent-panel";
 import { DASH_NAV } from "@/components/dash/shell";
 import { decideApproval } from "@/lib/hq-actions";
 import { agentActivity } from "@/lib/hq-profiles";
-import { AGENTS, COMPANY, IDEAS, VEHICLES, type VehicleInfo } from "@/lib/hq-data";
+import { AGENTS, COMPANY, VEHICLES, type VehicleInfo } from "@/lib/hq-data";
 import { currentJobFor } from "@/lib/hq-jobs";
 import { formatHour, formatShort, isMeeting, isOnShift, timeAgo, useHqStore, type ViewMode } from "@/lib/hq-store";
 import { useAmbience } from "@/lib/hq-ambience";
@@ -185,7 +185,6 @@ function DashMenu() {
 /* ---------------------------------- top bar + stats ---------------------------------- */
 
 function TopBar() {
-  const activeAgents = useHqStore((s) => Object.values(s.profiles).filter((p) => p.enabled).length);
   return (
     <div className="pointer-events-none absolute left-2 top-2 sm:left-3 sm:top-3 flex w-auto items-start gap-2">
       <div className="pointer-events-auto flex max-w-[calc(100vw-1rem)] items-center gap-2 rounded-2xl border border-white/10 bg-[#11162a]/88 px-3 py-2 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl transition hover:border-white/20 hover:bg-[#1a2140]/95 sm:px-3.5 sm:py-2.5">
@@ -197,7 +196,7 @@ function TopBar() {
             <span className="truncate text-[13px] font-extrabold tracking-tight text-[#eef1ff] sm:text-[15px]">Kantor CLIPYARD HQ</span>
             <FloorBadge />
           </div>
-          <p className="truncate text-[9px] font-semibold text-[#98a1c4] sm:text-[10.5px]">AWAN7 Studio · 6 agen aktif</p>
+          <p className="truncate text-[9px] font-semibold text-[#98a1c4] sm:text-[10.5px]">AWAN7 Studio · Bay 7</p>
         </div>
       </div>
       <div className="pointer-events-auto flex items-center gap-2">
@@ -253,22 +252,8 @@ function StatsBar() {
   const approvals = useHqStore((s) => s.approvals);
   const profiles = useHqStore((s) => s.profiles);
   const demoShift = useHqStore((s) => s.demoShift);
-  const [, force] = useReducer((x: number) => x + 1, 0);
-
-  useEffect(() => {
-    const id = window.setInterval(force, 1000);
-    return () => window.clearInterval(id);
-  }, [force]);
 
   const tokensOut = stats.tokensOut ?? stats.clipsShipped * 137;
-  const wib = new Date().toLocaleTimeString("id-ID", {
-    timeZone: "Asia/Jakarta",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const meeting = isMeeting(hour);
   // "Active" follows the same truth as the robots: demo = on shift,
   // real mode = actually working/queued/waiting on the owner right now.
   const activeCount = demoShift
@@ -284,12 +269,10 @@ function StatsBar() {
       }).length;
 
   return (
-    <div className="pointer-events-auto absolute right-2 top-[4.5rem] hidden grid-cols-2 gap-1.5 min-[640px]:grid sm:right-3 sm:top-[4.6rem] sm:grid-cols-3 md:top-14 lg:top-[4.4rem]">
-      <StatTile label="JAM WIB" value={wib} />
+    <div className="pointer-events-auto absolute right-2 top-[4.5rem] hidden grid-cols-2 gap-1.5 min-[640px]:grid sm:right-3 sm:top-[4.6rem] md:top-14 lg:top-[4.4rem]">
       <StatTile label="KLIP TERKIRIM" value={formatShort(stats.clipsShipped)} accent="#0ea5e9" />
+      <StatTile label="ANTREAN RENDER" value={formatShort(stats.renderQueue)} />
       <StatTile label="TOKEN KELUAR" value={formatShort(tokensOut)} />
-      <StatTile label={demoShift ? "RAPAT BERIKUTNYA" : "LAPORAN HARIAN"} value={meeting && demoShift ? "SEKARANG" : "13.00"} accent={meeting && demoShift ? "#34d399" : undefined} />
-      <StatTile label="AKSI" value={formatShort(useHqStore((s) => s.actions))} />
       <StatTile label="AGEN AKTIF" value={`${activeCount}/6`} />
     </div>
   );
@@ -367,9 +350,6 @@ function ViewControls() {
           <EyeOff className="h-3.5 w-3.5" />
         </button>
       </div>
-      <p className="pointer-events-none absolute bottom-[7rem] left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-full bg-[#11162a]/55 px-3 py-1 text-[9px] font-semibold text-white/55 backdrop-blur-md lg:block">
-        seret untuk memutar · scroll untuk zoom · klik robot untuk panel kerja · H sembunyikan UI
-      </p>
     </>
   );
 }
@@ -458,7 +438,6 @@ function RightRail() {
     <div className="hq-scroll pointer-events-auto absolute right-2 top-[9.8rem] hidden max-h-[calc(100dvh-17.5rem)] w-[220px] flex-col gap-2 overflow-y-auto pb-1 pr-0.5 md:right-3 md:flex md:w-[236px] lg:top-[10.6rem]">
       <ClockPanel />
       <ApprovalInbox />
-      <BacklogPanel />
     </div>
   );
 }
@@ -483,7 +462,7 @@ function ClockPanel() {
         <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.14em] text-hq-muted">
           <Clock3 className="h-3.5 w-3.5" /> JAM SIM
         </span>
-        <Chip color={on ? "#34d399" : "#a78bfa"}>{on ? "ON SHIFT" : "OFF SHIFT"}</Chip>
+        {demoShift && <Chip color={on ? "#34d399" : "#a78bfa"}>{on ? "ON SHIFT" : "OFF SHIFT"}</Chip>}
       </div>
       <div className="mt-0.5 flex items-baseline gap-2">
         <span className="font-mono text-[26px] font-extrabold leading-none tracking-tight text-hq-text">
@@ -644,85 +623,6 @@ function ApprovalInbox() {
       <p className="mt-2 text-[9.5px] font-medium leading-snug text-hq-muted">
         Keputusanmu langsung menjalankan langkah berikutnya.
       </p>
-    </div>
-  );
-}
-
-/* ---------------------------------- backlog (right) ---------------------------------- */
-
-function BacklogPanel() {
-  const jobs = useHqStore((s) => s.jobs);
-  const approvals = useHqStore((s) => s.approvals);
-  const profiles = useHqStore((s) => s.profiles);
-  const [open, setOpen] = useState(true);
-
-  const deadline = useMemo(
-    () =>
-      jobs
-        .filter((j) => j.status === "running" || j.status === "queued")
-        .sort((a, b) => a.updatedAt - b.updatedAt)
-        .slice(0, 4),
-    [jobs],
-  );
-  const count = deadline.length + approvals.length + IDEAS.length;
-  const agentOf = (id: string) => profiles[id as keyof typeof profiles];
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-[#11162a]/88 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center justify-between"
-        title={open ? "Lipat backlog" : "Buka backlog"}
-      >
-        <span className="text-[10px] font-bold tracking-[0.14em] text-hq-muted">BACKLOG</span>
-        <span className="flex items-center gap-1.5">
-          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-hq-line/70 px-1.5 text-[10px] font-extrabold text-hq-text">
-            {count}
-          </span>
-          <ChevronDown className={cn("h-3.5 w-3.5 text-hq-muted transition-transform", !open && "-rotate-90")} />
-        </span>
-      </button>
-
-      {open && (
-        <>
-          <p className="mt-2.5 text-[9px] font-bold tracking-[0.12em] text-[#fbbf24]">Deadline dekat · {deadline.length}</p>
-          <div className="mt-1 space-y-1">
-            {deadline.map((j) => {
-              const a = agentOf(j.agentId);
-              return (
-                <div key={j.jobId} className="flex items-start gap-1.5">
-                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: a?.color }} />
-                  <p className="min-w-0 flex-1 truncate text-[10.5px] font-semibold leading-snug text-hq-text">{j.title}</p>
-                  <span className="shrink-0 text-[9px] font-bold text-hq-muted">{j.status === "running" ? `${Math.round(j.progress * 100)}%` : "antre"}</span>
-                </div>
-              );
-            })}
-            {deadline.length === 0 && <p className="text-[10px] font-medium text-hq-muted">Kosong — lantai bersih</p>}
-          </div>
-
-          <p className="mt-2.5 text-[9px] font-bold tracking-[0.12em] text-[#fbbf24]">Nunggu owner · {approvals.length}</p>
-          <div className="mt-1 space-y-1">
-            {approvals.map((a) => (
-              <div key={a.id} className="flex items-start gap-1.5">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
-                <p className="min-w-0 flex-1 truncate text-[10.5px] font-semibold leading-snug text-hq-text">{a.title}</p>
-              </div>
-            ))}
-            {approvals.length === 0 && <p className="text-[10px] font-medium text-hq-muted">Tidak ada</p>}
-          </div>
-
-          <p className="mt-2.5 text-[9px] font-bold tracking-[0.12em] text-hq-muted">Ide / nanti · {IDEAS.length}</p>
-          <div className="mt-1 space-y-1">
-            {IDEAS.map((idea) => (
-              <div key={idea} className="flex items-start gap-1.5">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-hq-muted/50" />
-                <p className="min-w-0 flex-1 truncate text-[10.5px] font-medium leading-snug text-hq-muted">{idea}</p>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
     </div>
   );
 }
