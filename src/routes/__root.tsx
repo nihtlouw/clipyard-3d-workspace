@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { createRootRoute, HeadContent, Outlet } from "@tanstack/react-router";
+import { initFloorFeed } from "@/lib/hq-floor";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
@@ -19,10 +21,19 @@ export const Route = createRootRoute({
       },
     ],
   }),
-  component: () => (
+  component: RootComponent,
+});
+
+function RootComponent() {
+  // The floor feed is app-wide (Fase 6): dashboard pages read the same live
+  // store as the 3D studio, so the producer keeps running across routes.
+  useEffect(() => {
+    initFloorFeed();
+  }, []);
+  return (
     <>
       <HeadContent />
       <Outlet />
     </>
-  ),
-});
+  );
+}

@@ -13,6 +13,11 @@
 import type { AgentId } from "@/lib/hq-data";
 import { STATS } from "@/lib/hq-data";
 import {
+  floorApiPath,
+  loadConnector,
+  type ConnectorConfig,
+} from "@/lib/hq-connector";
+import {
   sanitizeSnapshot,
   type ApprovalRequest,
   type ClipJob,
@@ -33,10 +38,81 @@ export function attachFloorSource(source: FloorSource) {
   return () => source.stop();
 }
 
-/** Picks the HTTP source when VITE_FLOOR_URL is configured, else the mock. */
+/* ------------------------------ runtime source manager (Fase 6) ------------------------------ */
+
+let activeDetach: (() => void) | null = null;
+
+function sourceForConfig(cfg: ConnectorConfig): FloorSource {
+  return cfg.mode === "live" && cfg.floorUrl.trim()
+    ? createHttpSource(cfg.floorUrl.trim(), cfg.pollSec * 1000)
+    : createMockSource();
+}
+
+/** Starts the floor feed once (app-level singleton). Reads the saved connector config. */
+export function initFloorFeed(): void {
+  if (activeDetach) return;
+  applyConnectorConfig(loadConnector());
+}
+
+/** Hot-swaps the active producer after the user saves connector settings. */
+export function applyConnectorConfig(cfg: ConnectorConfig): void {
+  activeDetach?.();
+  activeDetach = attachFloorSource(sourceForConfig(cfg));
+}
+
+/** Picks the source from the saved connector config (VITE_FLOOR_URL is its seed). */
 export function createDefaultFloorSource(): FloorSource {
-  const url = import.meta.env.VITE_FLOOR_URL as string | undefined;
-  return url && url.trim() ? createHttpSource(url.trim()) : createMockSource();
+  return sourceForConfig(loadConnector());
+}
+
+/* ------------------------------ assigning work from the UI ------------------------------ */
+
+const pendingSimJobs: Array<{ agentId: AgentId; title: string }> = [];
+
+/** Queues a user-assigned job into the mock simulator (picked up on its next tick). */
+export function injectSimJob(agentId: AgentId, title: string): void {
+  pendingSimJobs.push({ agentId, title: title.trim().slice(0, 80) || "Tugas dari panel" });
+}
+
+export interface SubmitResult {
+  ok: boolean;
+  message: string;
+}
+
+/**
+ * Sends one job to the active pipeline:
+ *  - SIM  → injected into the built-in simulator (agent starts it within ~1s)
+ *  - LIVE → POST /api/n8n/job on the Floor API (token header), exactly like n8n does
+ */
+export async function submitJobToFloor(
+  cfg: ConnectorConfig,
+  agentId: AgentId,
+  title: string,
+): Promise<SubmitResult> {
+  const clean = title.trim().slice(0, 80) || "Tugas dari panel";
+  if (cfg.mode === "sim") {
+    injectSimJob(agentId, clean);
+    useHqStore.getState().pushEvent(`Tugas baru untuk ${agentId.toUpperCase()}: ${clean}`, { kind: "system" });
+    return { ok: true, message: "Tugas masuk antrean agen — dikerjakan begitu job saat ini selesai (biasanya < 40 detik)." };
+  }
+  try {
+    const res = await fetch(floorApiPath(cfg, "/n8n/job"), {
+      method: "POST",
+      headers: { "content-type": "application/json", "X-Clipyard-Token": cfg.token },
+      body: JSON.stringify({
+        jobId: `ui_${agentId}_${Date.now()}`,
+        agentId,
+        title: clean,
+        status: "running",
+        progress: 0.1,
+      }),
+    });
+    if (!res.ok) return { ok: false, message: `Floor API menjawab HTTP ${res.status} — cek token & URL.` };
+    useHqStore.getState().pushEvent(`Tugas terkirim ke pipeline: ${clean}`, { kind: "system" });
+    return { ok: true, message: "Job terkirim ke Floor API — akan muncul di lantai pada polling berikutnya." };
+  } catch (err) {
+    return { ok: false, message: `Gagal mengirim job: ${err instanceof Error ? err.message : String(err)}` };
+  }
 }
 
 /* ---------------------------------- mock simulator ---------------------------------- */
@@ -173,6 +249,13 @@ function createMockSource(): FloorSource {
 
       if (a.phase === "queue") {
         a.job.progress = 0;
+        // A user-assigned task re-labels the queued job immediately (Fase 6).
+        const qp = pendingSimJobs.findIndex((p) => p.agentId === a.agentId);
+        if (qp >= 0) {
+          const pending = pendingSimJobs.splice(qp, 1)[0]!;
+          a.job = { ...a.job, jobId: `ui_${a.agentId}_${now}`, title: pending.title };
+          dirty = true;
+        }
         if (a.elapsed >= a.queueFor) {
           a.phase = "run";
           a.elapsed = 0;
@@ -201,6 +284,13 @@ function createMockSource(): FloorSource {
         } else if (a.job.status === "done" || a.job.status === "failed") {
           if (a.elapsed >= (a.job.status === "failed" ? 9 : 5)) {
             const next = spawnJob(a.agentId, a.episode + 1 + Math.floor(Math.random() * 2));
+            // A user-assigned task (Fase 6) jumps the queue for this agent.
+            const pendingIdx = pendingSimJobs.findIndex((p) => p.agentId === a.agentId);
+            if (pendingIdx >= 0) {
+              const pending = pendingSimJobs.splice(pendingIdx, 1)[0]!;
+              next.job = { ...next.job, jobId: `ui_${a.agentId}_${now}`, title: pending.title };
+              next.queueFor = 0.8;
+            }
             if (a.agentId === "bolt") stats.renderQueue += 1;
             Object.assign(a, next);
           }
@@ -252,7 +342,7 @@ function createMockSource(): FloorSource {
 
 /* ---------------------------------- live HTTP source ---------------------------------- */
 
-function createHttpSource(url: string): FloorSource {
+function createHttpSource(url: string, pollVisibleMs = 2000): FloorSource {
   let timer: number | null = null;
   let stopped = true;
   let inFlight = false;
@@ -282,7 +372,7 @@ function createHttpSource(url: string): FloorSource {
         if (stopped) return;
         void poll(emit);
         const hidden = typeof document !== "undefined" && document.hidden;
-        timer = window.setTimeout(loop, hidden ? 10_000 : 2_000);
+        timer = window.setTimeout(loop, hidden ? 10_000 : pollVisibleMs);
       };
       loop();
     },

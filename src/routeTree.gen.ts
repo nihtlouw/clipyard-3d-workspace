@@ -10,11 +10,32 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AgenRouteImport } from './routes/agen'
+import { Route as AktivitasRouteImport } from './routes/aktivitas'
+import { Route as DokumenRouteImport } from './routes/dokumen'
 import { Route as HqRouteImport } from './routes/hq'
+import { Route as KonektorRouteImport } from './routes/konektor'
+import { Route as LaporanRouteImport } from './routes/laporan'
+import { Route as StatistikRouteImport } from './routes/statistik'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgenRoute = AgenRouteImport.update({
+  id: '/agen',
+  path: '/agen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AktivitasRoute = AktivitasRouteImport.update({
+  id: '/aktivitas',
+  path: '/aktivitas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DokumenRoute = DokumenRouteImport.update({
+  id: '/dokumen',
+  path: '/dokumen',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HqRoute = HqRouteImport.update({
@@ -22,31 +43,95 @@ const HqRoute = HqRouteImport.update({
   path: '/hq',
   getParentRoute: () => rootRouteImport,
 } as any)
+const KonektorRoute = KonektorRouteImport.update({
+  id: '/konektor',
+  path: '/konektor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LaporanRoute = LaporanRouteImport.update({
+  id: '/laporan',
+  path: '/laporan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StatistikRoute = StatistikRouteImport.update({
+  id: '/statistik',
+  path: '/statistik',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/agen': typeof AgenRoute
+  '/aktivitas': typeof AktivitasRoute
+  '/dokumen': typeof DokumenRoute
   '/hq': typeof HqRoute
+  '/konektor': typeof KonektorRoute
+  '/laporan': typeof LaporanRoute
+  '/statistik': typeof StatistikRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/agen': typeof AgenRoute
+  '/aktivitas': typeof AktivitasRoute
+  '/dokumen': typeof DokumenRoute
   '/hq': typeof HqRoute
+  '/konektor': typeof KonektorRoute
+  '/laporan': typeof LaporanRoute
+  '/statistik': typeof StatistikRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/agen': typeof AgenRoute
+  '/aktivitas': typeof AktivitasRoute
+  '/dokumen': typeof DokumenRoute
   '/hq': typeof HqRoute
+  '/konektor': typeof KonektorRoute
+  '/laporan': typeof LaporanRoute
+  '/statistik': typeof StatistikRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/hq'
+  fullPaths:
+    | '/'
+    | '/agen'
+    | '/aktivitas'
+    | '/dokumen'
+    | '/hq'
+    | '/konektor'
+    | '/laporan'
+    | '/statistik'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/hq'
-  id: '__root__' | '/' | '/hq'
+  to:
+    | '/'
+    | '/agen'
+    | '/aktivitas'
+    | '/dokumen'
+    | '/hq'
+    | '/konektor'
+    | '/laporan'
+    | '/statistik'
+  id:
+    | '__root__'
+    | '/'
+    | '/agen'
+    | '/aktivitas'
+    | '/dokumen'
+    | '/hq'
+    | '/konektor'
+    | '/laporan'
+    | '/statistik'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AgenRoute: typeof AgenRoute
+  AktivitasRoute: typeof AktivitasRoute
+  DokumenRoute: typeof DokumenRoute
   HqRoute: typeof HqRoute
+  KonektorRoute: typeof KonektorRoute
+  LaporanRoute: typeof LaporanRoute
+  StatistikRoute: typeof StatistikRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,6 +143,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/agen': {
+      id: '/agen'
+      path: '/agen'
+      fullPath: '/agen'
+      preLoaderRoute: typeof AgenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/aktivitas': {
+      id: '/aktivitas'
+      path: '/aktivitas'
+      fullPath: '/aktivitas'
+      preLoaderRoute: typeof AktivitasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dokumen': {
+      id: '/dokumen'
+      path: '/dokumen'
+      fullPath: '/dokumen'
+      preLoaderRoute: typeof DokumenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/hq': {
       id: '/hq'
       path: '/hq'
@@ -65,12 +171,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HqRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/konektor': {
+      id: '/konektor'
+      path: '/konektor'
+      fullPath: '/konektor'
+      preLoaderRoute: typeof KonektorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/laporan': {
+      id: '/laporan'
+      path: '/laporan'
+      fullPath: '/laporan'
+      preLoaderRoute: typeof LaporanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/statistik': {
+      id: '/statistik'
+      path: '/statistik'
+      fullPath: '/statistik'
+      preLoaderRoute: typeof StatistikRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AgenRoute: AgenRoute,
+  AktivitasRoute: AktivitasRoute,
+  DokumenRoute: DokumenRoute,
   HqRoute: HqRoute,
+  KonektorRoute: KonektorRoute,
+  LaporanRoute: LaporanRoute,
+  StatistikRoute: StatistikRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
