@@ -1,55 +1,50 @@
 /**
- * CLIPYARD HQ — open-plan isometric office, detailed interior pass.
+ * CLIPYARD HQ — glass diorama (redesign v3, following the reference render).
  *
- * Design system: warm oak plank floor, two-tone walls (white + soft wainscot),
- * sage/terracotta/mustard accents, agent-colored chair shells & desk dividers,
- * curtains + sill planters, pendant lamps, framed art, glass meeting/boss
- * rooms, coffee corner with steam, render nest, diecast garage, office cat.
+ * Compact cutaway box on a dark slab: west window wall + north TV wall only,
+ * black-framed glass rooms along the east side (meeting north, rest south),
+ * 3 paired desk pods + 1 spare hot-desk pod in the open area, warm wood
+ * floor, tripod lamp in the apex. MeshStandardMaterial + one shadow-casting
+ * key light (see sky.tsx) for the reference's soft cinematic depth.
  *
- * Four walls with smart fade (orbit 360°); static geometry merged per
- * material; instanced books/foliage/LEDs/mugs/shadows/shells/dividers;
- * canvas textures redraw on gated ticks only.
+ * Static geometry is merged per material; canvas textures (skyline, screens,
+ * whiteboard, TV) redraw on gated ticks only.
  */
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { AGENTS, VEHICLES, type VehicleInfo } from "@/lib/hq-data";
-import { currentJobFor } from "@/lib/hq-jobs";
-import { effectiveDayFactors, isMeeting, isOnShift, useHqStore } from "@/lib/hq-store";
 import {
-  createBlobShadow, createGlowSprite,
+  AGENTS,
+  CREDENZA,
+  MEETING_SEATS,
+  MEETING_TABLE,
+  PODS,
+  POD_SEAT_DZ,
+  ROOM,
+  SPARE_POD,
+  VEHICLES,
+  type AgentInfo,
+  type VehicleInfo,
+} from "@/lib/hq-data";
+import { currentJobFor } from "@/lib/hq-jobs";
+import { effectiveDayFactors, isOnShift, useHqStore } from "@/lib/hq-store";
+import {
+  createBlobShadow,
   createDarkSign,
   createDeskLabel,
   createFloorWood,
+  createGlowSprite,
   createMeetingScreen,
-  createPoster,
   createRug,
   createScreen,
-  createSign,
   createSkyline,
-  createVendingFront,
   createWhiteboard,
-  seededRandom,
 } from "@/lib/hq-textures";
 
 /* ---------------------------------- palette ---------------------------------- */
 
 const INK = "#232746";
-const NAVY = "#3a4070";
-const WALL = "#fdfcfb"; // warmer white like reference
-const WAINSCOT = "#f3f1e8"; // warm cream band
-const WHITE = "#ffffff";
-const WOOD = "#cfa272"; // lighter warm oak
-const WOOD_DARK = "#8b6f47"; // lighter dark wood
-const TERRA = "#c0704d"; // softer terracotta
-const SAGE = "#8aaa82"; // softer sage
-const MUSTARD = "#dcb55e"; // softer mustard
-const CARDBOARD = "#dbc0a0"; // lighter cardboard
-const GREEN1 = "#6fb07a"; // softer green
-const GREEN2 = "#82c88a"; // softer green
-const GLASS = "#b8cce8"; // cooler light blue glass
-const CREAM = "#f5ead6"; // warmer cream
 
 /* ---------------------------------- geometry helpers ---------------------------------- */
 
@@ -60,13 +55,39 @@ function boxAt(w: number, h: number, d: number, x: number, y: number, z: number,
   return g;
 }
 
-function cylAt(rt: number, rb: number, h: number, seg: number, x: number, y: number, z: number) {
+function cylAt(
+  rt: number, rb: number, h: number, seg: number,
+  x: number, y: number, z: number, rx = 0, rz = 0,
+) {
   const g = new THREE.CylinderGeometry(rt, rb, h, seg);
+  if (rx) g.rotateX(rx);
+  if (rz) g.rotateZ(rz);
   g.translate(x, y, z);
   return g;
 }
 
+/** Box expressed in a local frame (origin cx/cz, yaw), local +z = facing dir. */
+function boxLocal(
+  cx: number, cz: number, yaw: number,
+  lx: number, y: number, lz: number,
+  w: number, h: number, d: number,
+) {
+  const cos = Math.cos(yaw);
+  const sin = Math.sin(yaw);
+  const wx = cx + lx * cos + lz * sin;
+  const wz = cz - lx * sin + lz * cos;
+  return boxAt(w, h, d, wx, y, wz, yaw);
+}
+
+/** World position of a local-frame point (for JSX props like screens/labels). */
+function localPoint(cx: number, cz: number, yaw: number, lx: number, lz: number): [number, number] {
+  const cos = Math.cos(yaw);
+  const sin = Math.sin(yaw);
+  return [cx + lx * cos + lz * sin, cz - lx * sin + lz * cos];
+}
+
 function merge(list: THREE.BufferGeometry[]) {
+  if (list.length === 0) return new THREE.BoxGeometry(0.001, 0.001, 0.001);
   const merged = mergeGeometries(list, false);
   list.forEach((g) => g.dispose());
   if (!merged) throw new Error("merge failed");
@@ -74,324 +95,253 @@ function merge(list: THREE.BufferGeometry[]) {
   return merged;
 }
 
-/* ---------------------------------- room dimensions ---------------------------------- */
-
-const FLOOR_W = 28;
-const FLOOR_D = 19;
-const WALL_H = 5.6;
-const DESK_ROWS = [-4.2, 0.6];
-const DESK_XS = [-7.5, -2.5, 2.5];
-const GLASS_OPACITY = 0.22; // more visible glass like reference
-
-/* ---------------------------------- shell (walls, windows, doors) ---------------------------------- */
-
-function useShellGeometries() {
-  return useMemo(() => {
-    const tray = merge([
-      boxAt(FLOOR_W + 1.6, 0.8, FLOOR_D + 1.6, 0, -0.41, 0),
-      boxAt(FLOOR_W + 1.0, 0.32, 0.62, 0, WALL_H + 0.14, -FLOOR_D / 2 - 0.5),
-      boxAt(FLOOR_W + 1.0, 0.32, 0.62, 0, WALL_H + 0.14, FLOOR_D / 2 + 0.5),
-      boxAt(0.62, 0.32, FLOOR_D + 1.0, -FLOOR_W / 2 - 0.5, WALL_H + 0.14, 0),
-      boxAt(0.62, 0.32, FLOOR_D + 1.0, FLOOR_W / 2 + 0.5, WALL_H + 0.14, 0),
-    ]);
-
-    const WALL_X = FLOOR_W / 2 + 0.2;
-    const WALL_Z = FLOOR_D / 2 + 0.2;
-
-    const wallN = merge([
-      boxAt(FLOOR_W, 1.1, 0.4, 0, 0.55, -WALL_Z),
-      boxAt(FLOOR_W, 0.7, 0.4, 0, 5.25, -WALL_Z),
-      ...[-13.5, -9, -4.5, 0, 4.5, 9.5].map((x) => boxAt(0.3, 3.8, 0.4, x, 3.0, -WALL_Z)),
-      boxAt(0.3, 3.8, 0.4, 13.9, 3.0, -WALL_Z),
-    ]);
-    const wallN2 = merge([
-      boxAt(1.6, 3.8, 0.4, 5.7, 3.0, -WALL_Z),
-      boxAt(1.6, 3.8, 0.4, 13.1, 3.0, -WALL_Z),
-    ]);
-    const wallE = merge([
-      boxAt(0.4, WALL_H, FLOOR_D, WALL_X, WALL_H / 2, 0),
-      boxAt(0.4, 3.8, 0.3, WALL_X, 3.0, 0),
-    ]);
-    const wallW = merge([boxAt(0.4, WALL_H, FLOOR_D, -WALL_X, WALL_H / 2, 0)]);
-    const wallS = merge([boxAt(FLOOR_W, WALL_H, 0.4, 0, WALL_H / 2, WALL_Z)]);
-
-    // wainscot: low band along each wall's inner face (split per side so it
-    // fades together with its wall in FadingWall)
-    const wainscotN = merge([boxAt(FLOOR_W - 0.2, 0.72, 0.06, 0, 0.5, -WALL_Z + 0.26)]);
-    const wainscotE = merge([boxAt(0.06, 0.72, FLOOR_D - 0.2, WALL_X - 0.26, 0.5, 0)]);
-    const wainscotW = merge([boxAt(0.06, 0.72, FLOOR_D - 0.2, -WALL_X + 0.26, 0.5, 0)]);
-    const wainscotS = merge([boxAt(FLOOR_W - 0.2, 0.72, 0.06, 0, 0.5, WALL_Z - 0.26)]);
-
-    // white trims + window frames
-    const frame = (cx: number, cz: number, w: number, ry = 0) => {
-      const parts = [
-        boxAt(w + 0.3, 0.14, 0.24, cx, 1.02, cz, ry),
-        boxAt(w + 0.3, 0.14, 0.24, cx, 4.98, cz, ry),
-      ];
-      const ends = ry === 0 ? [cx - w / 2, cx + w / 2] : [cz - w / 2, cz + w / 2];
-      parts.push(
-        ...(ry === 0
-          ? ends.map((x) => boxAt(0.14, 4.1, 0.24, x, 3.0, cz))
-          : ends.map((z) => boxAt(0.14, 4.1, 0.24, cx, 3.0, z))),
-        ry === 0 ? boxAt(w, 0.1, 0.12, cx, 3.0, cz) : boxAt(0.1, w, 0.12, cx, 3.0, cz),
-        // sill ledge (sticks into the room, planters sit on it)
-        ry === 0
-          ? boxAt(w + 0.4, 0.09, 0.4, cx, 0.96, cz + 0.14)
-          : boxAt(0.4, 0.09, w + 0.4, cx + 0.14, 0.96, cz),
-      );
-      return parts;
-    };
-    const white = merge([
-      boxAt(FLOOR_W, 0.24, 0.08, 0, 0.12, -WALL_Z + 0.24),
-      boxAt(0.08, 0.24, FLOOR_D, -WALL_X + 0.24, 0.12, 0),
-      boxAt(0.08, 0.24, FLOOR_D, WALL_X - 0.24, 0.12, 0),
-      boxAt(FLOOR_W, 0.24, 0.08, 0, 0.12, WALL_Z - 0.24),
-      ...frame(-5.625, -WALL_Z + 0.02, 17.4),
-      ...frame(9.3, -WALL_Z + 0.02, 6.0),
-      ...frame(WALL_X - 0.02, 0, 4.0, Math.PI / 2),
-    ]);
-
-    // meeting room glass + frames (+ door handles)
-    const glass = merge([
-      // front wall split into two panes with a real sliding-door opening (x 8.55-10.15)
-      boxAt(3.25, 4.9, 0.06, 6.925, 2.5, 2.0),
-      boxAt(3.25, 4.9, 0.06, 11.775, 2.5, 2.0),
-      boxAt(1.6, 2.0, 0.06, 9.35, 3.95, 2.0),
-      boxAt(0.06, 4.9, 6.9, 5.1, 2.5, 5.6),
-    ]);
-    const glassFrame = merge([
-      boxAt(8.5, 0.18, 0.2, 9.35, 5.02, 2.0),
-      boxAt(8.5, 0.3, 0.2, 9.35, 0.06, 2.0),
-      ...[5.15, 8.55, 10.15, 13.55].map((x) => boxAt(0.18, 5.1, 0.2, x, 2.55, 2.0)),
-      boxAt(0.2, 0.18, 7.3, 5.1, 5.02, 5.6),
-      boxAt(0.2, 0.3, 7.3, 5.1, 0.06, 5.6),
-      ...[2.15, 5.6, 9.05].map((z) => boxAt(0.2, 5.1, 0.18, 5.1, 2.55, z)),
-      // sliding-door handles
-      cylAt(0.035, 0.035, 0.9, 8, 8.2, 1.35, 1.84),
-      cylAt(0.035, 0.035, 0.9, 8, 10.5, 1.35, 2.16),
-    ]);
-    const glass2 = merge([
-      boxAt(8.1, 4.9, 0.06, 9.35, 2.5, -3.0),
-      boxAt(0.06, 4.9, 6.0, 5.1, 2.5, -6.1),
-    ]);
-    const glassFrame2 = merge([
-      boxAt(8.5, 0.18, 0.2, 9.35, 5.02, -3.0),
-      boxAt(8.5, 0.3, 0.2, 9.35, 0.06, -3.0),
-      ...[5.15, 9.35, 13.55].map((x) => boxAt(0.18, 5.1, 0.2, x, 2.55, -3.0)),
-      boxAt(0.2, 0.18, 6.3, 5.1, 5.02, -6.1),
-      boxAt(0.2, 0.3, 6.3, 5.1, 0.06, -6.1),
-      ...[-3.2, -6.1, -9.0].map((z) => boxAt(0.2, 5.1, 0.18, 5.1, 2.55, z)),
-      cylAt(0.035, 0.035, 0.9, 8, 8.2, 1.35, -3.16),
-      cylAt(0.035, 0.035, 0.9, 8, 10.5, 1.35, -2.84),
-    ]);
-
-    return { tray, wallN, wallN2, wallE, wallW, wallS, wainscotN, wainscotE, wainscotW, wainscotS, white, glass, glassFrame, glass2, glassFrame2 };
-  }, []);
+type Buckets = Record<string, THREE.BufferGeometry[]>;
+function newBuckets(keys: string[]): Buckets {
+  const b: Buckets = {};
+  keys.forEach((k) => (b[k] = []));
+  return b;
 }
 
-/* ---------------------------------- furniture ---------------------------------- */
+/* ---------------------------------- workstation builder ---------------------------------- */
 
-function useFurnitureGeometries() {
+interface SeatSpec {
+  pos: [number, number];
+  yaw: number;
+}
+
+/** One desk + monitor + chair in front of a seat. Desk center is seat + facing·0.78. */
+function buildWorkstation(b: Buckets, seat: SeatSpec) {
+  const [x, z] = seat.pos;
+  const yaw = seat.yaw;
+  const L = (lx: number, y: number, lz: number, w: number, h: number, d: number) =>
+    boxLocal(x, z, yaw, lx, y, lz, w, h, d);
+
+  // desk: light-wood top, grey drawer pedestal (left), panel leg (right), spine
+  b.wood.push(L(0, 0.74, 0.78, 1.7, 0.07, 0.8));
+  b.pedestal.push(L(-0.52, 0.36, 0.78, 0.52, 0.7, 0.68));
+  b.black.push(L(-0.52, 0.52, 0.43, 0.3, 0.03, 0.02)); // drawer handle slit
+  b.pedestal.push(L(0.8, 0.36, 0.78, 0.06, 0.7, 0.7));
+  b.black.push(L(0, 0.52, 1.16, 1.62, 0.44, 0.04)); // modesty/spine panel
+
+  // monitor near the spine, facing the seat
+  b.black.push(L(0, 0.79, 1.0, 0.36, 0.03, 0.24)); // foot
+  b.black.push(L(0, 0.9, 1.05, 0.07, 0.22, 0.07)); // stand
+  b.black.push(L(0, 1.09, 1.07, 0.8, 0.5, 0.045)); // body (screen plane is separate)
+
+  // keyboard + paper stack
+  b.dark.push(L(0, 0.785, 0.56, 0.5, 0.025, 0.18));
+  b.white.push(L(0.58, 0.785, 0.8, 0.3, 0.02, 0.4));
+
+  // office chair at the seat: cushion, back, pole, 5-star
+  b.chair.push(L(0, 0.47, 0, 0.52, 0.08, 0.5));
+  const back = new THREE.BoxGeometry(0.5, 0.56, 0.07);
+  back.rotateX(-0.1);
+  back.rotateY(yaw);
+  const [bx, bz] = localPoint(x, z, yaw, 0, -0.27);
+  back.translate(bx, 0.84, bz);
+  b.chair.push(back);
+  b.black.push(cylAt(0.03, 0.03, 0.4, 8, x, 0.24, z));
+  for (let k = 0; k < 5; k++) {
+    const a = yaw + (k / 5) * Math.PI * 2 + 0.4;
+    b.black.push(boxAt(0.3, 0.03, 0.05, x + Math.sin(a) * 0.15, 0.05, z + Math.cos(a) * 0.15, -a));
+  }
+}
+
+/** Simple meeting chair at a seat. */
+function buildMeetingChair(b: Buckets, seat: SeatSpec) {
+  const [x, z] = seat.pos;
+  const yaw = seat.yaw;
+  b.chair.push(boxLocal(x, z, yaw, 0, 0.47, 0, 0.48, 0.07, 0.46));
+  b.chair.push(boxLocal(x, z, yaw, 0, 0.78, -0.24, 0.48, 0.5, 0.06));
+  b.black.push(cylAt(0.03, 0.03, 0.42, 8, x, 0.23, z));
+  b.black.push(cylAt(0.26, 0.28, 0.03, 14, x, 0.03, z));
+}
+
+/* ---------------------------------- glass walls ---------------------------------- */
+
+const GLASS_H = 3.02;
+
+/**
+ * One axis-aligned glass wall from (x0,z0) to (x1,z1) with black frames.
+ * `doors` = center positions (in the wall's free axis) of 1.05-wide openings.
+ */
+function buildGlassWall(
+  b: Buckets,
+  x0: number, z0: number, x1: number, z1: number,
+  doors: number[] = [],
+) {
+  const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0);
+  const a0 = alongX ? x0 : z0;
+  const a1 = alongX ? x1 : z1;
+  const fixed = alongX ? z0 : x0;
+  const lo = Math.min(a0, a1);
+  const hi = Math.max(a0, a1);
+  const len = hi - lo;
+  const at = (a: number): [number, number] => (alongX ? [a, fixed] : [fixed, a]);
+  const span = (aMid: number, w: number, h: number, y: number, thick: number) => {
+    const [px, pz] = at(aMid);
+    return alongX ? boxAt(w, h, thick, px, y, pz) : boxAt(thick, h, w, px, y, pz);
+  };
+
+  // rails
+  b.frame.push(span(lo + len / 2, len, 0.12, GLASS_H - 0.02, 0.09));
+  b.frame.push(span(lo + len / 2, len, 0.1, 0.05, 0.09));
+
+  // posts every ≤1.6, plus door jambs
+  const posts = new Set<number>([lo, hi]);
+  const n = Math.max(1, Math.round(len / 1.6));
+  for (let i = 1; i < n; i++) posts.add(lo + (len / n) * i);
+  for (const d of doors) {
+    posts.add(d - ROOM.DOOR_W / 2);
+    posts.add(d + ROOM.DOOR_W / 2);
+  }
+  const sorted = [...posts].sort((p, q) => p - q);
+  for (const p of sorted) b.frame.push(span(p, 0.09, GLASS_H, GLASS_H / 2, 0.09));
+
+  // panes between posts; door spans only get a header pane + handle + slider panel
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const p0 = sorted[i];
+    const p1 = sorted[i + 1];
+    const mid = (p0 + p1) / 2;
+    const w = p1 - p0 - 0.09;
+    if (w <= 0.02) continue;
+    const isDoor = doors.some((d) => Math.abs(mid - d) < ROOM.DOOR_W / 2 + 0.01);
+    if (isDoor) {
+      b.glass.push(span(mid, w, 0.52, 2.68, 0.04)); // header above the opening
+      const [hx, hz] = at(mid + ROOM.DOOR_W / 2 - 0.14);
+      b.frame.push(cylAt(0.028, 0.028, 0.85, 8, hx, 1.25, hz)); // handle
+    } else {
+      b.glass.push(span(mid, w, GLASS_H - 0.24, GLASS_H / 2, 0.04));
+    }
+  }
+}
+
+/* ---------------------------------- shell + furniture geometry ---------------------------------- */
+
+function useRoomGeometries() {
   return useMemo(() => {
-    const white: THREE.BufferGeometry[] = [];
-    const navy: THREE.BufferGeometry[] = [];
-    const silver: THREE.BufferGeometry[] = [];
-    const wood: THREE.BufferGeometry[] = [];
-    const woodDark: THREE.BufferGeometry[] = [];
-    const cardboard: THREE.BufferGeometry[] = [];
-    const cream: THREE.BufferGeometry[] = [];
-    const gold: THREE.BufferGeometry[] = [];
-    const steel: THREE.BufferGeometry[] = [];
-
-    // ---- 6 hero desks: top + side panels + modesty + keyboard ----
-    for (const z of DESK_ROWS) {
-      for (const x of DESK_XS) {
-        white.push(
-          boxAt(2.1, 0.1, 1.05, x, 1.15, z),
-          boxAt(0.08, 1.08, 0.95, x - 0.95, 0.56, z),
-          boxAt(0.08, 1.08, 0.95, x + 0.95, 0.56, z),
-          boxAt(1.8, 0.5, 0.05, x, 0.86, z - 0.42),
-          boxAt(0.56, 0.05, 0.21, x, 1.225, z + 0.3),
-        );
-        navy.push(
-          boxAt(0.68, 0.46, 0.07, x, 1.35, z + 0.06),
-          boxAt(0.09, 0.17, 0.09, x, 1.22, z + 0.06),
-          boxAt(0.32, 0.05, 0.2, x, 1.2, z + 0.06),
-        );
-      }
-    }
-
-    // ---- hero chairs: silver 5-star bases + armrests (shells are instanced) ----
-    for (const z of DESK_ROWS) {
-      for (const x of DESK_XS) {
-        const az = z - 0.62;
-        for (let k = 0; k < 5; k++) {
-          const a = (k / 5) * Math.PI * 2 + 0.3;
-          const g = boxAt(0.34, 0.035, 0.055, Math.sin(a) * 0.16, 0.07, az + Math.cos(a) * 0.16, -a);
-          silver.push(g);
-        }
-        silver.push(cylAt(0.032, 0.032, 0.32, 8, x, 0.24, az));
-        // armrests
-        navy.push(
-          boxAt(0.05, 0.04, 0.26, x - 0.27, 0.66, az + 0.02),
-          boxAt(0.05, 0.04, 0.26, x + 0.27, 0.66, az + 0.02),
-          boxAt(0.05, 0.2, 0.05, x - 0.27, 0.55, az + 0.1),
-          boxAt(0.05, 0.2, 0.05, x + 0.27, 0.55, az + 0.1),
-        );
-      }
-    }
-
-    // ---- meeting room: table + 8 navy chairs + speakerphone + wall TV frame ----
-    const mtx = 9.35;
-    const mtz = 5.6;
-    woodDark.push(
-      boxAt(3.9, 0.14, 1.55, mtx, 1.16, mtz),
-      boxAt(0.26, 1.1, 1.25, mtx - 1.55, 0.55, mtz),
-      boxAt(0.26, 1.1, 1.25, mtx + 1.55, 0.55, mtz),
-    );
-    white.push(cylAt(0.16, 0.16, 0.05, 16, mtx, 1.26, mtz)); // speakerphone
-    for (const [cx, cz, yaw] of [
-      [mtx - 1.35, mtz - 0.98, 0], [mtx, mtz - 0.98, 0], [mtx + 1.35, mtz - 0.98, 0],
-      [mtx - 0.675, mtz - 0.98, 0], [mtx - 1.35, mtz + 0.98, Math.PI], [mtx, mtz + 0.98, Math.PI],
-      [mtx + 1.35, mtz + 0.98, Math.PI], [mtx + 0.675, mtz + 0.98, Math.PI],
-    ] as const) {
-      navy.push(
-        boxAt(0.5, 0.09, 0.5, cx, 0.72, cz),
-        boxAt(0.5, 0.5, 0.09, cx, 0.98, cz + (yaw === 0 ? -0.21 : 0.21)),
-      );
-      silver.push(cylAt(0.035, 0.035, 0.42, 8, cx, 0.46, cz));
-    }
-    navy.push(boxAt(4.7, 2.9, 0.14, mtx, 3.3, FLOOR_D / 2 + 0.1));
-
-    // ---- boss room: desk + chair + guests + trophy shelf + trophies + safe ----
-    woodDark.push(
-      boxAt(0.9, 0.14, 2.6, 11.3, 1.2, -6.1),
-      boxAt(0.7, 1.14, 0.3, 11.45, 0.57, -6.1),
-      boxAt(2.0, 0.1, 0.6, 12.6, 3.0, -8.85),
-      boxAt(2.0, 0.1, 0.6, 12.6, 4.0, -8.85),
-      boxAt(0.08, 1.1, 0.6, 11.6, 3.5, -8.85),
-      boxAt(0.08, 1.1, 0.6, 13.6, 3.5, -8.85),
-    );
-    gold.push(
-      cylAt(0.09, 0.13, 0.3, 10, 12.1, 3.2, -8.85),
-      cylAt(0.09, 0.13, 0.3, 10, 12.6, 4.2, -8.85),
-      boxAt(0.34, 0.26, 0.34, 13.1, 3.23, -8.85),
-    );
-    navy.push(
-      boxAt(0.62, 0.7, 0.62, 12.35, 1.3, -6.1),
-      boxAt(0.62, 0.62, 0.09, 12.35, 1.85, -5.75),
-      boxAt(0.52, 0.5, 0.52, 9.9, 0.62, -6.7),
-      boxAt(0.52, 0.5, 0.52, 9.9, 0.62, -5.5),
-    );
-    silver.push(cylAt(0.05, 0.05, 0.5, 8, 12.35, 0.8, -6.1));
-    steel.push(boxAt(0.62, 0.62, 0.62, 13.5, 0.32, -8.7), cylAt(0.06, 0.06, 0.05, 10, 13.38, 0.36, -8.48));
-
-    // ---- rest room: sofa + cushions + coffee table + floor lamp ----
-    const sx = -9.0;
-    const sz = 8.85;
-    navy.push(
-      boxAt(2.8, 0.52, 0.95, sx, 0.5, sz),
-      boxAt(2.8, 0.75, 0.25, sx, 0.95, sz + 0.36),
-      boxAt(0.28, 0.6, 0.95, sx - 1.4, 0.72, sz),
-      boxAt(0.28, 0.6, 0.95, sx + 1.4, 0.72, sz),
-    );
-    cream.push(boxAt(0.5, 0.4, 0.4, sx - 0.9, 0.95, sz + 0.1, 0.3));
-    white.push(cylAt(0.5, 0.5, 0.08, 18, sx, 0.68, sz - 1.5), cylAt(0.06, 0.08, 0.62, 10, sx, 0.31, sz - 1.5));
-    silver.push(cylAt(0.03, 0.03, 1.7, 8, sx + 1.9, 0.85, sz - 0.4));
-
-    // ---- vending machine ----
-    navy.push(boxAt(0.85, 2.0, 1.15, -13.55, 1.0, 4.6));
-
-    // ---- kitchen: counter + machine + kettle + 2 bar stools ----
-    white.push(boxAt(0.9, 0.95, 3.4, -13.7, 0.48, -0.2));
-    wood.push(boxAt(1.0, 0.07, 3.55, -13.68, 0.99, -0.2));
-    navy.push(boxAt(0.5, 0.6, 0.45, -13.7, 1.32, -0.95));
-    cream.push(cylAt(0.14, 0.17, 0.3, 12, -13.66, 1.17, 0.35));
-    for (const z of [-1.35, 0.35]) {
-      silver.push(cylAt(0.04, 0.04, 0.55, 8, -12.75, 0.28, z));
-      navy.push(cylAt(0.21, 0.21, 0.07, 14, -12.75, 0.58, z));
-    }
-
-    // ---- render nest racks ----
-    navy.push(
-      boxAt(0.8, 2.3, 1.15, -13.55, 1.15, -7.4),
-      boxAt(0.8, 2.3, 1.15, -13.55, 1.15, -8.7),
-    );
-
-    // ---- bookshelf ----
-    const bz = -5.2;
-    wood.push(
-      boxAt(0.6, 0.1, 3.3, -13.75, 4.42, bz),
-      boxAt(0.6, 4.6, 0.09, -13.75, 2.3, bz - 1.62),
-      boxAt(0.6, 4.6, 0.09, -13.75, 2.3, bz + 1.62),
-      boxAt(0.56, 0.08, 3.16, -13.75, 1.72, bz),
-      boxAt(0.56, 0.08, 3.16, -13.75, 2.98, bz),
-      boxAt(0.56, 0.08, 3.16, -13.75, 4.24, bz),
-      boxAt(0.56, 0.08, 3.16, -13.75, 0.5, bz),
-      boxAt(0.5, 0.5, 0.5, -13.75, 0.25, bz),
-    );
-
-    // ---- lounge: sofa + coffee table + lamp pole ----
-    navy.push(
-      boxAt(2.3, 0.5, 0.9, 0.2, 0.48, 6.95),
-      boxAt(2.3, 0.7, 0.24, 0.2, 0.9, 7.33),
-      boxAt(0.26, 0.55, 0.9, -1.0, 0.68, 6.95),
-      boxAt(0.26, 0.55, 0.9, 1.4, 0.68, 6.95),
-    );
-    white.push(cylAt(0.46, 0.46, 0.07, 20, 0.2, 0.66, 5.75), cylAt(0.07, 0.09, 0.6, 10, 0.2, 0.3, 5.75));
-    silver.push(cylAt(0.03, 0.03, 2.1, 8, 3.5, 1.05, 7.7), cylAt(0.2, 0.24, 0.06, 12, 3.5, 0.05, 7.7));
-
-    // ---- garage sideboard ----
-    white.push(boxAt(4.9, 1.4, 0.85, 8.35, 0.7, 9.2));
-    navy.push(boxAt(5.05, 0.09, 0.95, 8.35, 1.47, 9.2));
-
-    // ---- shipping boxes ----
-    cardboard.push(
-      boxAt(0.72, 0.62, 0.72, 4.6, 0.31, -8.2, 0.12),
-      boxAt(0.58, 0.5, 0.58, 4.5, 0.87, -8.15, -0.2),
-      boxAt(0.46, 0.42, 0.46, 4.72, 1.33, -8.25, 0.35),
-    );
-    cream.push(boxAt(0.74, 0.08, 0.2, 4.6, 0.62, -8.2, 0.12), boxAt(0.2, 0.08, 0.74, 4.6, 0.62, -8.2, 0.12));
-
-    // ---- plant pots (floor + windowsill) ----
-    const pots = merge([
-      cylAt(0.34, 0.26, 0.5, 12, -4.8, 0.25, -9.0),
-      cylAt(0.3, 0.23, 0.45, 12, 13.1, 0.23, -8.6),
-      cylAt(0.3, 0.23, 0.45, 12, 12.9, 0.23, 8.7),
-      cylAt(0.26, 0.2, 0.4, 12, -13.2, 0.2, 8.8),
-      cylAt(0.16, 0.13, 0.26, 10, -13.75, 4.62, -5.2),
-      // sill planters
-      cylAt(0.16, 0.13, 0.2, 10, -6.85, 1.11, -9.42),
-      cylAt(0.16, 0.13, 0.2, 10, 2.15, 1.11, -9.42),
-      cylAt(0.14, 0.12, 0.18, 10, 14.0, 1.1, -1.6),
+    const b = newBuckets([
+      "wall", "slab", "frame", "glass", "wood", "woodDark", "pedestal", "black",
+      "dark", "chair", "white", "sofa", "sofaLight", "cream", "terra", "sage", "potW",
     ]);
 
-    // ---- whiteboard frame (east wall) ----
-    navy.push(boxAt(0.12, 2.94, 4.84, FLOOR_W / 2 - 0.08, 3.52, 0.0));
+    /* ---- slab (dark diorama base, like the reference floating box) ---- */
+    b.slab.push(boxAt(ROOM.W + 0.9, 0.55, ROOM.D + 0.9, 0, -0.28, 0));
 
-    // ---- pendant lamps: cables + shades (warm discs are a separate bucket) ----
-    for (const [px, pz] of [
-      [8.3, 5.6],
-      [10.4, 5.6],
-      [0.2, 6.0],
-      [-13.2, -0.2],
-      [-9.0, 7.3],
-    ] as const) {
-      navy.push(cylAt(0.014, 0.014, 1.5, 6, px, 5.0, pz), cylAt(0.1, 0.32, 0.32, 14, px, 4.06, pz));
+    /* ---- north wall (solid, cream) ---- */
+    b.wall.push(boxAt(ROOM.W + 0.7, ROOM.H, 0.35, 0, ROOM.H / 2, -ROOM.D / 2 - 0.17));
+    b.wall.push(boxAt(ROOM.W + 0.7, 0.14, 0.52, 0, ROOM.H + 0.05, -ROOM.D / 2 - 0.17)); // cornice
+    b.white.push(boxAt(ROOM.W, 0.18, 0.05, 0, 0.09, -ROOM.D / 2 + 0.03)); // baseboard
+
+    /* ---- west wall with 3 window openings ---- */
+    const WIN = [-3.9, -0.7, 2.5]; // centers (z), each 2.4 wide, sill .95 → top 2.65
+    const wx = -ROOM.W / 2 - 0.17;
+    b.wall.push(boxAt(0.35, 0.95, ROOM.D + 0.7, wx, 0.475, 0)); // below sills
+    b.wall.push(boxAt(0.35, ROOM.H - 2.65, ROOM.D + 0.7, wx, (ROOM.H + 2.65) / 2, 0)); // above
+    b.wall.push(boxAt(0.52, 0.14, ROOM.D + 0.7, wx, ROOM.H + 0.05, 0)); // cornice
+    const pillars: Array<[number, number]> = [[-6.35, -5.1], [-2.7, -1.9], [0.5, 1.3], [3.7, 6.35]];
+    for (const [z0, z1] of pillars) {
+      b.wall.push(boxAt(0.35, 1.7, z1 - z0, wx, 1.8, (z0 + z1) / 2));
+    }
+    b.white.push(boxAt(0.05, 0.18, ROOM.D, wx + 0.2, 0.09, 0));
+    // window frames + mullions + sills (dark, like the reference)
+    for (const cz of WIN) {
+      b.frame.push(
+        boxAt(0.1, 0.09, 2.5, wx, 0.98, cz),
+        boxAt(0.1, 0.09, 2.5, wx, 2.62, cz),
+        boxAt(0.1, 1.7, 0.09, wx, 1.8, cz - 1.2),
+        boxAt(0.1, 1.7, 0.09, wx, 1.8, cz + 1.2),
+        boxAt(0.06, 1.7, 0.05, wx, 1.8, cz),
+        boxAt(0.06, 0.05, 2.4, wx, 1.8, cz),
+      );
+      b.white.push(boxAt(0.34, 0.06, 2.56, wx + 0.22, 0.97, cz)); // sill ledge
     }
 
-    return {
-      white: merge(white),
-      navy: merge(navy),
-      silver: merge(silver),
-      wood: merge(wood),
-      woodDark: merge(woodDark),
-      cardboard: merge(cardboard),
-      cream: merge(cream),
-      gold: merge(gold),
-      steel: merge(steel),
-      pots,
+    /* ---- glass rooms (west line + partition + east + south) ---- */
+    buildGlassWall(b, ROOM.GLASS_X, -6, ROOM.GLASS_X, 6, [ROOM.MEETING_DOOR_Z, ROOM.LOUNGE_DOOR_Z]);
+    buildGlassWall(b, ROOM.GLASS_X, ROOM.PARTITION_Z, 8, ROOM.PARTITION_Z);
+    buildGlassWall(b, 8, -6, 8, 6);
+    buildGlassWall(b, ROOM.GLASS_X, 6, 8, 6);
+
+    /* ---- 6 agent workstations + spare hot-desk pod ---- */
+    for (const a of AGENTS) buildWorkstation(b, { pos: a.desk, yaw: a.deskYaw });
+    buildWorkstation(b, { pos: [SPARE_POD[0], SPARE_POD[1] - POD_SEAT_DZ], yaw: 0 });
+    buildWorkstation(b, { pos: [SPARE_POD[0], SPARE_POD[1] + POD_SEAT_DZ], yaw: Math.PI });
+
+    /* ---- meeting room ---- */
+    const mt = MEETING_TABLE;
+    b.wood.push(boxAt(3.4, 0.08, 1.5, mt.x, 0.74, mt.z));
+    b.black.push(boxAt(0.18, 0.7, 1.2, mt.x - 1.4, 0.35, mt.z), boxAt(0.18, 0.7, 1.2, mt.x + 1.4, 0.35, mt.z));
+    for (const s of MEETING_SEATS) buildMeetingChair(b, s);
+    b.white.push(cylAt(0.15, 0.15, 0.05, 14, mt.x, 0.8, mt.z)); // speakerphone
+    // 3 laptops on the table
+    for (const [lx, ry] of [[mt.x - 1.0, 0.15], [mt.x + 0.2, -0.1], [mt.x + 1.1, Math.PI + 0.2]] as const) {
+      b.pedestal.push(boxAt(0.36, 0.02, 0.26, lx, 0.79, mt.z + (ry > 1 ? 0.3 : -0.3), ry));
+      b.black.push(boxAt(0.36, 0.24, 0.02, lx, 0.9, mt.z + (ry > 1 ? 0.42 : -0.42), ry));
+    }
+    // low bench under the TV + TV frame
+    b.pedestal.push(boxAt(3.0, 0.42, 0.45, mt.x, 0.21, -5.62));
+    b.black.push(boxAt(3.25, 1.9, 0.1, mt.x, 2.02, -5.9));
+
+    /* ---- rest room (glass lounge) ---- */
+    // sofa along the east glass, facing west
+    b.sofa.push(boxAt(0.95, 0.5, 2.35, 7.28, 0.4, 2.9));
+    b.sofa.push(boxAt(0.26, 0.85, 2.35, 7.66, 0.78, 2.9));
+    b.sofa.push(boxAt(0.95, 0.62, 0.26, 7.28, 0.66, 1.66), boxAt(0.95, 0.62, 0.26, 7.28, 0.66, 4.14));
+    b.sofaLight.push(boxAt(0.78, 0.16, 0.98, 7.2, 0.66, 2.35), boxAt(0.78, 0.16, 0.98, 7.2, 0.66, 3.45));
+    b.cream.push(boxAt(0.16, 0.36, 0.36, 7.45, 0.85, 2.0, 0.2), boxAt(0.16, 0.36, 0.36, 7.45, 0.85, 3.85, -0.15));
+    // coffee table
+    b.wood.push(boxAt(0.95, 0.05, 0.55, 6.15, 0.34, 2.9));
+    b.black.push(boxAt(0.06, 0.32, 0.45, 5.85, 0.16, 2.9), boxAt(0.06, 0.32, 0.45, 6.45, 0.16, 2.9));
+    // floor cushions (LEXA / PIXEL spots)
+    b.sage.push(cylAt(0.44, 0.48, 0.14, 16, 5.2, 0.07, 2.2));
+    b.terra.push(cylAt(0.44, 0.48, 0.14, 16, 5.2, 0.07, 3.5));
+    // lounge floor lamp pole (shade is a separate emissive mesh)
+    b.black.push(cylAt(0.03, 0.03, 1.45, 8, 7.5, 0.72, 1.05), cylAt(0.16, 0.19, 0.04, 12, 7.5, 0.03, 1.05));
+
+    /* ---- whiteboard on the north wall (open area) ---- */
+    b.black.push(boxAt(3.45, 1.95, 0.08, -1.7, 1.98, -5.92));
+
+    /* ---- west credenza (mini CREW GARAGE) ---- */
+    b.white.push(boxAt(0.55, 0.58, 3.6, CREDENZA.x, 0.31, CREDENZA.z));
+    b.wood.push(boxAt(0.64, 0.05, 3.72, CREDENZA.x, CREDENZA.topY, CREDENZA.z));
+    b.black.push(boxAt(0.03, 0.04, 0.5, CREDENZA.x + 0.29, 0.45, CREDENZA.z - 0.9), boxAt(0.03, 0.04, 0.5, CREDENZA.x + 0.29, 0.45, CREDENZA.z + 0.9));
+
+    /* ---- apex tripod lamp legs (NW corner — signature of the reference) ---- */
+    const lampX = -7.25;
+    const lampZ = -5.25;
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2 + 0.5;
+      const leg = new THREE.CylinderGeometry(0.024, 0.024, 1.58, 6);
+      leg.translate(0, -0.79, 0); // pivot at the top hub
+      leg.rotateX(0.21); // splay outward (toward local +z)
+      leg.rotateY(a);
+      leg.translate(lampX, 1.56, lampZ);
+      b.woodDark.push(leg);
+    }
+    b.woodDark.push(cylAt(0.05, 0.05, 0.1, 8, lampX, 1.54, lampZ));
+    // small table lamp stem on the meeting bench
+    b.black.push(cylAt(0.02, 0.02, 0.34, 6, 6.7, 0.6, -5.62), cylAt(0.09, 0.1, 0.03, 10, 6.7, 0.44, -5.62));
+
+    /* ---- plant pots + trunks (foliage blobs are instanced separately) ---- */
+    const plantAt = (x: number, z: number, r: number, h: number, white: boolean) => {
+      (white ? b.potW : b.terra).push(cylAt(r, r * 0.78, h, 12, x, h / 2, z));
+      b.woodDark.push(cylAt(0.03, 0.04, 0.35, 6, x, h + 0.15, z));
     };
+    plantAt(-7.3, -4.15, 0.3, 0.42, false);
+    plantAt(1.3, -5.35, 0.28, 0.4, true);
+    plantAt(-7.35, 5.4, 0.28, 0.4, false);
+    plantAt(1.3, 5.4, 0.26, 0.38, true);
+    plantAt(7.45, -5.35, 0.28, 0.4, true); // meeting corner
+    plantAt(7.45, 5.4, 0.3, 0.42, false); // rest corner
+    plantAt(-1.9, -1.6, 0.24, 0.34, false); // between pods
+    // tiny sill pots
+    b.terra.push(cylAt(0.11, 0.09, 0.16, 10, -7.95, 1.08, -3.9));
+    b.potW.push(cylAt(0.11, 0.09, 0.16, 10, -7.95, 1.08, 2.5));
+
+    const out: Record<string, THREE.BufferGeometry> = {};
+    for (const k of Object.keys(b)) out[k] = merge(b[k]);
+    return { geos: out, windows: WIN, lampPos: [lampX, lampZ] as const };
   }, []);
 }
 
@@ -399,326 +349,33 @@ function useFurnitureGeometries() {
 
 function useRoomMaterials() {
   return useMemo(() => {
-    const lambert = (color: string) => new THREE.MeshLambertMaterial({ color });
+    const std = (color: string, roughness = 0.9, metalness = 0) =>
+      new THREE.MeshStandardMaterial({ color, roughness, metalness });
     return {
-      tray: lambert("#fbfbff"),
-      wall: lambert(WALL),
-      wainscot: lambert(WAINSCOT),
-      white: lambert(WHITE),
-      navy: lambert(NAVY),
-      silver: lambert("#b9bed4"),
-      wood: lambert(WOOD),
-      woodDark: lambert(WOOD_DARK),
-      cardboard: lambert(CARDBOARD),
-      cream: lambert(CREAM),
-      terra: lambert("#c9704d"),
-      gold: lambert("#e6b84c"),
-      steel: lambert("#5c6478"),
-      sage: lambert(SAGE),
-      mustard: lambert(MUSTARD),
-      carpetMeeting: lambert("#dfe4f2"),
-      carpetBoss: lambert("#e4def2"),
-      curtainSage: lambert(SAGE),
-      curtainTerra: lambert(TERRA),
-      warmGlow: new THREE.MeshBasicMaterial({ color: "#ffd9a4" }),
-      glass: new THREE.MeshBasicMaterial({
-        color: GLASS,
-        transparent: true,
-        opacity: 0.35, // more visible glass like reference
-        depthWrite: false,
+      wall: std("#f2e9d8", 0.96),
+      slab: std("#171c31", 0.92),
+      frame: std("#15171f", 0.5, 0.35),
+      glass: new THREE.MeshStandardMaterial({
+        color: "#d7e2f0", transparent: true, opacity: 0.18, roughness: 0.08, metalness: 0.1, depthWrite: false,
       }),
-    };
+      wood: std("#d9b98c", 0.72),
+      woodDark: std("#8a6a44", 0.8),
+      pedestal: std("#9aa0ae", 0.55, 0.25),
+      black: std("#1b1e28", 0.5, 0.3),
+      dark: std("#2b2f3d", 0.8),
+      chair: std("#575f70", 0.9),
+      white: std("#f4f2ec", 0.85),
+      sofa: std("#4a5478", 0.96),
+      sofaLight: std("#5c6892", 0.96),
+      cream: std("#e8dcc4", 0.95),
+      terra: std("#b06a48", 0.9),
+      sage: std("#7d9474", 0.95),
+      potW: std("#e9e6df", 0.85),
+    } as const;
   }, []);
 }
 
-/* ---------------------------------- instanced colored parts ---------------------------------- */
-
-/** Chair shells + desk dividers in each agent's color. */
-function AgentColoredParts() {
-  const seats = useRef<THREE.InstancedMesh>(null);
-  const backs = useRef<THREE.InstancedMesh>(null);
-  const dividers = useRef<THREE.InstancedMesh>(null);
-
-  const data = useMemo(() => {
-    const seatGeo = new THREE.BoxGeometry(0.52, 0.1, 0.5);
-    const backGeo = new THREE.BoxGeometry(0.52, 0.54, 0.09);
-    const divGeo = new THREE.BoxGeometry(0.95, 0.5, 0.06);
-    const mat = new THREE.MeshLambertMaterial({ color: "#ffffff" });
-    const seats: THREE.Matrix4[] = [];
-    const backs: THREE.Matrix4[] = [];
-    const dividers: THREE.Matrix4[] = [];
-    const colors: THREE.Color[] = [];
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const e = new THREE.Euler();
-    AGENTS.forEach((a, i) => {
-      const x = DESK_XS[i % 3];
-      const z = DESK_ROWS[i < 3 ? 0 : 1] - 0.62;
-      seats.push(m.clone().makeTranslation(x, 0.62, z));
-      e.set(-0.12, 0, 0);
-      q.setFromEuler(e);
-      backs.push(
-        new THREE.Matrix4().compose(new THREE.Vector3(x, 0.98, z - 0.24), q.clone(), new THREE.Vector3(1, 1, 1)),
-      );
-      dividers.push(m.clone().makeTranslation(x, 1.5, DESK_ROWS[i < 3 ? 0 : 1] - 0.46));
-      colors.push(new THREE.Color(a.color));
-    });
-    return { seatGeo, backGeo, divGeo, mat, seats, backs, dividers, colors };
-  }, []);
-
-  useLayoutEffect(() => {
-    for (const [ref, mats] of [
-      [seats, data.seats],
-      [backs, data.backs],
-      [dividers, data.dividers],
-    ] as const) {
-      const inst = ref.current;
-      if (!inst) continue;
-      mats.forEach((mm, i) => inst.setMatrixAt(i, mm));
-      colors(inst);
-    }
-    function colors(inst: THREE.InstancedMesh) {
-      data.colors.forEach((c, i) => inst.setColorAt(i, c));
-      inst.instanceMatrix.needsUpdate = true;
-      if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-    }
-  }, [data]);
-
-  return (
-    <group>
-      <instancedMesh ref={seats} args={[data.seatGeo, data.mat, AGENTS.length]} castShadow={false} />
-      <instancedMesh ref={backs} args={[data.backGeo, data.mat, AGENTS.length]} />
-      <instancedMesh ref={dividers} args={[data.divGeo, data.mat, AGENTS.length]} />
-    </group>
-  );
-}
-
-/* ---------------------------------- curtains ---------------------------------- */
-
-function Curtains() {
-  const items = useMemo(
-    () =>
-      [
-        { x: -9.2, c: SAGE },
-        { x: -4.7, c: TERRA },
-        { x: -0.2, c: SAGE },
-        { x: 6.45, c: TERRA },
-        { x: 12.15, c: SAGE },
-      ].map(({ x, c }) => ({
-        m: new THREE.Matrix4().makeTranslation(x, 3.0, -FLOOR_D / 2 - 0.05),
-        color: c,
-      })),
-    [],
-  );
-  const ref = useRef<THREE.InstancedMesh>(null);
-  const { geo, mat } = useMemo(
-    () => ({
-      geo: new THREE.BoxGeometry(0.16, 3.7, 0.3),
-      mat: new THREE.MeshLambertMaterial({ color: "#ffffff" }),
-    }),
-    [],
-  );
-  useLayoutEffect(() => {
-    const inst = ref.current;
-    if (!inst) return;
-    items.forEach((it, i) => {
-      inst.setMatrixAt(i, it.m);
-      inst.setColorAt(i, new THREE.Color(it.color));
-    });
-    inst.instanceMatrix.needsUpdate = true;
-    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-  }, [items]);
-  return <instancedMesh ref={ref} args={[geo, mat, items.length]} />;
-}
-
-/* ---------------------------------- books ---------------------------------- */
-
-const BOOK_COLORS = [
-  "#ef4444", "#f97316", "#f59e0b", "#84cc16", "#10b981", "#06b6d4",
-  "#3b82f6", "#6366f1", "#8b5cf6", "#ec4899", "#f43f5e", "#14b8a6",
-  "#eab308", "#22c55e",
-];
-
-function Books() {
-  const ref = useRef<THREE.InstancedMesh>(null);
-  const { geo, mat, matrices, colors } = useMemo(() => {
-    const rnd = seededRandom(20261016);
-    const mats: THREE.Matrix4[] = [];
-    const cols: THREE.Color[] = [];
-    const shelves = [0.54, 1.76, 3.02];
-    for (const sy of shelves) {
-      let z = -6.6;
-      while (z < -3.85) {
-        const t = 0.08 + rnd() * 0.06;
-        const h = 0.44 + rnd() * 0.22;
-        const m = new THREE.Matrix4();
-        m.compose(
-          new THREE.Vector3(-13.75, sy + 0.04 + h / 2, z + t / 2),
-          new THREE.Quaternion(),
-          new THREE.Vector3(1, h, t / 0.11),
-        );
-        mats.push(m);
-        cols.push(new THREE.Color(BOOK_COLORS[Math.floor(rnd() * BOOK_COLORS.length)]));
-        z += t + 0.015 + rnd() * 0.02;
-      }
-    }
-    return {
-      geo: new THREE.BoxGeometry(0.11, 1, 0.11),
-      mat: new THREE.MeshLambertMaterial({ color: "#ffffff" }),
-      matrices: mats,
-      colors: cols,
-    };
-  }, []);
-
-  useLayoutEffect(() => {
-    const inst = ref.current;
-    if (!inst) return;
-    matrices.forEach((m, i) => inst.setMatrixAt(i, m));
-    colors.forEach((c, i) => inst.setColorAt(i, c));
-    inst.instanceMatrix.needsUpdate = true;
-    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-  }, [matrices, colors]);
-
-  return <instancedMesh ref={ref} args={[geo, mat, matrices.length]} />;
-}
-
-/* ---------------------------------- foliage + rack LEDs ---------------------------------- */
-
-function Foliage() {
-  const ref = useRef<THREE.InstancedMesh>(null);
-  const { geo, mat, items } = useMemo(() => {
-    const blobs: Array<{ p: [number, number, number]; s: number; c: string }> = [
-      { p: [-4.8, 0.95, -9.0], s: 0.5, c: GREEN1 },
-      { p: [-5.1, 1.32, -8.75], s: 0.38, c: GREEN2 },
-      { p: [13.1, 0.9, -8.6], s: 0.42, c: GREEN2 },
-      { p: [12.9, 0.85, 8.7], s: 0.4, c: GREEN1 },
-      { p: [-13.2, 0.75, 8.8], s: 0.38, c: GREEN2 },
-      { p: [-13.75, 4.95, -5.2], s: 0.22, c: GREEN2 },
-      { p: [-13.6, 4.88, -5.05], s: 0.16, c: GREEN1 },
-      // sill planters
-      { p: [-6.85, 1.36, -9.42], s: 0.2, c: GREEN2 },
-      { p: [2.15, 1.36, -9.42], s: 0.2, c: GREEN1 },
-      { p: [14.0, 1.32, -1.6], s: 0.17, c: GREEN2 },
-    ];
-    return {
-      geo: new THREE.IcosahedronGeometry(1, 1),
-      mat: new THREE.MeshLambertMaterial({ color: "#ffffff" }),
-      items: blobs.map((b, i) => ({
-        m: new THREE.Matrix4().compose(
-          new THREE.Vector3(...b.p),
-          new THREE.Quaternion().setFromEuler(new THREE.Euler(i * 0.9, i * 1.7, 0)),
-          new THREE.Vector3(b.s, b.s * 0.9, b.s),
-        ),
-        c: new THREE.Color(b.c),
-      })),
-    };
-  }, []);
-
-  useLayoutEffect(() => {
-    const inst = ref.current;
-    if (!inst) return;
-    items.forEach((it, i) => {
-      inst.setMatrixAt(i, it.m);
-      inst.setColorAt(i, it.c);
-    });
-    inst.instanceMatrix.needsUpdate = true;
-    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-  }, [items]);
-
-  return <instancedMesh ref={ref} args={[geo, mat, items.length]} />;
-}
-
-function RackLeds() {
-  const ref = useRef<THREE.InstancedMesh>(null);
-  const { geo, mat, count } = useMemo(
-    () => ({
-      geo: new THREE.BoxGeometry(0.07, 0.05, 0.07),
-      mat: new THREE.MeshBasicMaterial({ color: "#ffffff" }),
-      count: 16,
-    }),
-    [],
-  );
-  useLayoutEffect(() => {
-    const inst = ref.current;
-    if (!inst) return;
-    const dummy = new THREE.Object3D();
-    let i = 0;
-    for (const rz of [-7.4, -8.7]) {
-      for (let row = 0; row < 8; row++) {
-        dummy.position.set(-13.12, 0.35 + row * 0.24, rz + (i % 2 === 0 ? -0.2 : 0.2));
-        dummy.updateMatrix();
-        inst.setMatrixAt(i, dummy.matrix);
-        i++;
-      }
-    }
-    inst.instanceMatrix.needsUpdate = true;
-  }, [count]);
-  const acc = useRef(0);
-  const on = useRef(false);
-  useFrame((_, delta) => {
-    acc.current += delta;
-    if (acc.current < 0.35) return;
-    acc.current = 0;
-    on.current = !on.current;
-    const inst = ref.current;
-    if (!inst?.instanceColor) return;
-    for (let i = 0; i < count; i++) {
-      const lit = (i + (on.current ? 0 : 1)) % 2 === 0;
-      inst.setColorAt(i, new THREE.Color(lit ? "#34d399" : "#232746"));
-    }
-    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-  });
-  return <instancedMesh ref={ref} args={[geo, mat, count]} />;
-}
-
-/* ---------------------------------- blob shadows ---------------------------------- */
-
-function BlobShadows({ tex }: { tex: THREE.Texture }) {
-  const ref = useRef<THREE.InstancedMesh>(null);
-  const { geo, mat, mats } = useMemo(() => {
-    const shadow = (x: number, z: number, w: number, d: number) => {
-      const m = new THREE.Matrix4();
-      m.compose(
-        new THREE.Vector3(x, 0.012, z),
-        new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)),
-        new THREE.Vector3(w, d, 1),
-      );
-      return m;
-    };
-    const list: THREE.Matrix4[] = [];
-    for (const z of DESK_ROWS) for (const x of DESK_XS) list.push(shadow(x, z + 0.15, 2.5, 1.9));
-    list.push(
-      shadow(9.35, 5.6, 5.4, 3.4),
-      shadow(11.3, -6.1, 2.6, 3.2),
-      shadow(-9.0, 8.85, 3.4, 1.6),
-      shadow(-13.55, 4.6, 1.6, 1.6),
-      shadow(-13.7, -0.2, 1.6, 3.8),
-      shadow(-13.55, -8.05, 1.6, 3.0),
-      shadow(-13.75, -5.2, 1.6, 3.8),
-      shadow(0.2, 6.5, 3.0, 2.4),
-      shadow(8.35, 9.2, 5.4, 1.6),
-      shadow(-4.8, -9.0, 1.4, 1.4),
-      shadow(13.1, -8.6, 1.3, 1.3),
-      shadow(12.9, 8.7, 1.3, 1.3),
-      shadow(-13.2, 8.8, 1.2, 1.2),
-      shadow(-12.75, -0.5, 1.0, 2.4),
-    );
-    return {
-      geo: new THREE.PlaneGeometry(1, 1),
-      mat: new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
-      mats: list,
-    };
-  }, [tex]);
-
-  useLayoutEffect(() => {
-    const inst = ref.current;
-    if (!inst) return;
-    mats.forEach((m, i) => inst.setMatrixAt(i, m));
-    inst.instanceMatrix.needsUpdate = true;
-  }, [mats]);
-
-  return <instancedMesh ref={ref} args={[geo, mat, mats.length]} renderOrder={1} />;
-}
+type RoomMats = ReturnType<typeof useRoomMaterials>;
 
 /* ---------------------------------- live surfaces ---------------------------------- */
 
@@ -781,98 +438,22 @@ function useLiveUpdates(live: LiveTex) {
   });
 }
 
-const WIN_W = 4.25;
-const WIN_H = 3.8;
-const NORTH_PANELS = [-11.35, -6.85, -2.35, 2.15];
-
-function NorthWindows({ live }: { live: LiveTex }) {
-  return (
-    <group>
-      {NORTH_PANELS.map((x) => (
-        <mesh key={x} position={[x, 3.0, -FLOOR_D / 2 - 0.18]}>
-          <planeGeometry args={[WIN_W, WIN_H]} />
-          <meshBasicMaterial map={live.skyline.tex} toneMapped={false} />
-        </mesh>
-      ))}
-      <mesh position={[9.3, 3.0, -FLOOR_D / 2 - 0.18]}>
-        <planeGeometry args={[5.6, WIN_H]} />
-        <meshBasicMaterial map={live.skyline.tex} toneMapped={false} />
-      </mesh>
-    </group>
-  );
-}
-
-function EastWhiteboard({ live }: { live: LiveTex }) {
-  return (
-    <mesh position={[FLOOR_W / 2 - 0.16, 3.55, 0]} rotation-y={-Math.PI / 2}>
-      <planeGeometry args={[4.52, 2.62]} />
-      <meshBasicMaterial map={live.whiteboard.tex} toneMapped={false} />
-    </mesh>
-  );
-}
-
-function MeetingTV({ live }: { live: LiveTex }) {
-  return (
-    <mesh position={[9.35, 3.35, FLOOR_D / 2 - 0.04]} rotation-y={Math.PI}>
-      <planeGeometry args={[4.3, 2.42]} />
-      <meshBasicMaterial map={live.meetingScreen.tex} toneMapped={false} />
-    </mesh>
-  );
-}
-
-function DeskScreens({ live }: { live: LiveTex }) {
-  return (
-    <group>
-      {AGENTS.map((agent, i) => {
-        const row = i < 3 ? 0 : 1;
-        const x = DESK_XS[i % 3];
-        const z = DESK_ROWS[row];
-        return (
-          <mesh key={agent.id} position={[x, 1.37, z + 0.098]}>
-            <planeGeometry args={[0.58, 0.37]} />
-            <meshBasicMaterial map={live.screens[i].tex} toneMapped={false} />
-          </mesh>
-        );
-      })}
-    </group>
-  );
-}
-
-/* ---------------------------------- desk labels + mugs ---------------------------------- */
-
-function DeskLabels() {
+/** Desk monitor screens + name labels + colored mugs, transformed per workstation. */
+function DeskProps({ live }: { live: LiveTex }) {
   const labels = useHqStore((s) => s.labels);
-  const textures = useMemo(() => AGENTS.map((a) => createDeskLabel(a.name, a.color)), []);
-  return (
-    <group>
-      {AGENTS.map((agent, i) => {
-        const row = i < 3 ? 0 : 1;
-        const x = DESK_XS[i % 3];
-        const z = DESK_ROWS[row];
-        return (
-          <mesh key={agent.id} position={[x, 1.15, z + 0.535]} visible={labels}>
-            <planeGeometry args={[0.56, 0.14]} />
-            <meshBasicMaterial map={textures[i]} toneMapped={false} transparent />
-          </mesh>
-        );
-      })}
-    </group>
-  );
-}
-
-function Mugs() {
-  const ref = useRef<THREE.InstancedMesh>(null);
-  const { geo, mat } = useMemo(
-    () => ({ geo: new THREE.CylinderGeometry(0.05, 0.045, 0.1, 10), mat: new THREE.MeshLambertMaterial({ color: "#ffffff" }) }),
+  const labelTex = useMemo(() => AGENTS.map((a) => createDeskLabel(a.name, a.color)), []);
+  const mugRef = useRef<THREE.InstancedMesh>(null);
+  const mug = useMemo(
+    () => ({ geo: new THREE.CylinderGeometry(0.05, 0.045, 0.1, 10), mat: new THREE.MeshStandardMaterial({ roughness: 0.6 }) }),
     [],
   );
   useLayoutEffect(() => {
-    const inst = ref.current;
+    const inst = mugRef.current;
     if (!inst) return;
     const dummy = new THREE.Object3D();
     AGENTS.forEach((a, i) => {
-      const row = i < 3 ? 0 : 1;
-      dummy.position.set(DESK_XS[i % 3] + 0.72, 1.27, DESK_ROWS[row] + 0.18);
+      const [mx, mz] = localPoint(a.desk[0], a.desk[1], a.deskYaw, 0.66, 0.62);
+      dummy.position.set(mx, 0.83, mz);
       dummy.updateMatrix();
       inst.setMatrixAt(i, dummy.matrix);
       inst.setColorAt(i, new THREE.Color(a.color));
@@ -880,7 +461,102 @@ function Mugs() {
     inst.instanceMatrix.needsUpdate = true;
     if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
   }, []);
-  return <instancedMesh ref={ref} args={[geo, mat, AGENTS.length]} />;
+
+  return (
+    <group>
+      {AGENTS.map((a, i) => {
+        const [sx, sz] = localPoint(a.desk[0], a.desk[1], a.deskYaw, 0, 1.04);
+        const [lx, lz] = localPoint(a.desk[0], a.desk[1], a.deskYaw, -0.52, 0.42);
+        return (
+          <group key={a.id}>
+            {/* screen faces the seated agent (backs to camera on the far row, like the reference) */}
+            <mesh position={[sx, 1.09, sz]} rotation-y={a.deskYaw + Math.PI}>
+              <planeGeometry args={[0.72, 0.42]} />
+              <meshBasicMaterial map={live.screens[i].tex} toneMapped={false} />
+            </mesh>
+            <mesh position={[lx, 0.42, lz]} rotation-y={a.deskYaw + Math.PI} visible={labels}>
+              <planeGeometry args={[0.46, 0.115]} />
+              <meshBasicMaterial map={labelTex[i]} toneMapped={false} transparent />
+            </mesh>
+          </group>
+        );
+      })}
+      {/* spare pod: dark idle monitors */}
+      {[0, Math.PI].map((yaw, i) => {
+        const seat: [number, number] = [SPARE_POD[0], SPARE_POD[1] + (yaw === 0 ? -POD_SEAT_DZ : POD_SEAT_DZ)];
+        const [sx, sz] = localPoint(seat[0], seat[1], yaw, 0, 1.04);
+        return (
+          <mesh key={i} position={[sx, 1.09, sz]} rotation-y={yaw + Math.PI}>
+            <planeGeometry args={[0.72, 0.42]} />
+            <meshBasicMaterial color="#131a2e" toneMapped={false} />
+          </mesh>
+        );
+      })}
+      <instancedMesh ref={mugRef} args={[mug.geo, mug.mat, AGENTS.length]} castShadow />
+    </group>
+  );
+}
+
+/* ---------------------------------- foliage ---------------------------------- */
+
+const PLANTS: Array<{ p: [number, number, number]; s: number; c: string }> = [
+  { p: [-7.3, 0.95, -4.15], s: 0.42, c: "#527f4c" },
+  { p: [-7.55, 1.25, -3.95], s: 0.3, c: "#63975c" },
+  { p: [1.3, 0.9, -5.35], s: 0.38, c: "#63975c" },
+  { p: [-7.35, 0.88, 5.4], s: 0.36, c: "#527f4c" },
+  { p: [1.3, 0.82, 5.4], s: 0.34, c: "#63975c" },
+  { p: [7.45, 0.9, -5.35], s: 0.38, c: "#63975c" },
+  { p: [7.2, 1.18, -5.15], s: 0.26, c: "#527f4c" },
+  { p: [7.45, 0.95, 5.4], s: 0.4, c: "#527f4c" },
+  { p: [-1.9, 0.72, -1.6], s: 0.3, c: "#63975c" },
+  { p: [-7.95, 1.28, -3.9], s: 0.15, c: "#63975c" },
+  { p: [-7.95, 1.28, 2.5], s: 0.15, c: "#527f4c" },
+];
+
+function Foliage() {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const { geo, mat } = useMemo(
+    () => ({ geo: new THREE.IcosahedronGeometry(1, 1), mat: new THREE.MeshStandardMaterial({ roughness: 0.95 }) }),
+    [],
+  );
+  useLayoutEffect(() => {
+    const inst = ref.current;
+    if (!inst) return;
+    PLANTS.forEach((b, i) => {
+      const m = new THREE.Matrix4().compose(
+        new THREE.Vector3(...b.p),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(i * 0.9, i * 1.7, 0)),
+        new THREE.Vector3(b.s * 0.8, b.s * 0.74, b.s * 0.8),
+      );
+      inst.setMatrixAt(i, m);
+      inst.setColorAt(i, new THREE.Color(b.c));
+    });
+    inst.instanceMatrix.needsUpdate = true;
+    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+  }, []);
+  return <instancedMesh ref={ref} args={[geo, mat, PLANTS.length]} castShadow />;
+}
+
+/* ---------------------------------- beanbags + rug ---------------------------------- */
+
+function LoungeSoft() {
+  const rug = useMemo(() => createRug(), []);
+  return (
+    <group>
+      <mesh position={[6.05, 0.015, 3.15]} rotation-x={-Math.PI / 2} renderOrder={1} receiveShadow>
+        <circleGeometry args={[1.95, 36]} />
+        <meshStandardMaterial map={rug} transparent opacity={0.92} roughness={1} depthWrite={false} />
+      </mesh>
+      <mesh position={[5.6, 0.27, 4.9]} scale={[1, 0.55, 1]} castShadow receiveShadow>
+        <sphereGeometry args={[0.54, 16, 12]} />
+        <meshStandardMaterial color="#7d9474" roughness={0.95} />
+      </mesh>
+      <mesh position={[4.5, 0.27, 5.0]} scale={[1, 0.55, 1]} castShadow receiveShadow>
+        <sphereGeometry args={[0.54, 16, 12]} />
+        <meshStandardMaterial color="#b96f4e" roughness={0.95} />
+      </mesh>
+    </group>
+  );
 }
 
 /* ---------------------------------- wall clock ---------------------------------- */
@@ -894,221 +570,105 @@ function WallClock() {
     if (minuteHand.current) minuteHand.current.rotation.z = -(hour % 1) * Math.PI * 2;
   });
   return (
-    <group position={[-9.5, 5.0, -FLOOR_D / 2 - 0.02]}>
+    <group position={[0.85, 2.62, -ROOM.D / 2 + 0.04]}>
       <mesh>
-        <circleGeometry args={[0.34, 24]} />
-        <meshBasicMaterial color="#ffffff" />
+        <circleGeometry args={[0.3, 24]} />
+        <meshBasicMaterial color="#f6f3ea" />
       </mesh>
       <mesh position={[0, 0, 0.01]}>
-        <ringGeometry args={[0.29, 0.34, 24]} />
-        <meshBasicMaterial color={INK} />
+        <ringGeometry args={[0.25, 0.3, 24]} />
+        <meshBasicMaterial color="#1b1e28" />
       </mesh>
       <group ref={hourHand} position={[0, 0, 0.02]}>
-        <mesh position={[0, 0.1, 0]}>
-          <boxGeometry args={[0.035, 0.2, 0.01]} />
+        <mesh position={[0, 0.08, 0]}>
+          <boxGeometry args={[0.032, 0.17, 0.01]} />
           <meshBasicMaterial color={INK} />
         </mesh>
       </group>
       <group ref={minuteHand} position={[0, 0, 0.03]}>
-        <mesh position={[0, 0.13, 0]}>
-          <boxGeometry args={[0.025, 0.26, 0.01]} />
-          <meshBasicMaterial color="#6d28d9" />
+        <mesh position={[0, 0.11, 0]}>
+          <boxGeometry args={[0.022, 0.22, 0.01]} />
+          <meshBasicMaterial color="#d97706" />
         </mesh>
       </group>
     </group>
   );
 }
 
-/* ---------------------------------- decor + signs ---------------------------------- */
+/* ---------------------------------- lamps + night glow ---------------------------------- */
 
-function Decor() {
-  const rug = useMemo(() => createRug(), []);
-  const vending = useMemo(() => createVendingFront(), []);
-  return (
-    <group>
-      <mesh position={[-13.1, 1.05, 4.6]} rotation-y={Math.PI / 2}>
-        <planeGeometry args={[1.0, 1.75]} />
-        <meshBasicMaterial map={vending} toneMapped={false} />
-      </mesh>
-      <mesh position={[0.1, 0.02, 6.2]} rotation-x={-Math.PI / 2} renderOrder={1}>
-        <circleGeometry args={[2.3, 40]} />
-        <meshBasicMaterial map={rug} transparent opacity={0.95} depthWrite={false} />
-      </mesh>
-      <mesh position={[-9.0, 0.02, 7.3]} rotation-x={-Math.PI / 2} renderOrder={1}>
-        <circleGeometry args={[1.8, 36]} />
-        <meshBasicMaterial map={rug} transparent opacity={0.9} depthWrite={false} />
-      </mesh>
-      <mesh position={[9.35, 0.035, 5.6]} rotation-x={-Math.PI / 2} renderOrder={1}>
-        <planeGeometry args={[8.0, 6.8]} />
-        <meshBasicMaterial color="#dfe4f2" transparent opacity={0.9} depthWrite={false} />
-      </mesh>
-      <mesh position={[9.35, 0.035, -6.1]} rotation-x={-Math.PI / 2} renderOrder={1}>
-        <planeGeometry args={[8.0, 5.6]} />
-        <meshBasicMaterial color="#e6dff2" transparent opacity={0.9} depthWrite={false} />
-      </mesh>
-      <mesh position={[3.5, 2.32, 7.7]}>
-        <cylinderGeometry args={[0.24, 0.38, 0.42, 14]} />
-        <meshBasicMaterial color="#ffd9a4" />
-      </mesh>
-      {/* beanbags */}
-      <mesh position={[2.6, 0.3, 6.4]} scale={[1, 0.55, 1]}>
-        <sphereGeometry args={[0.55, 14, 10]} />
-        <meshLambertMaterial color={TERRA} />
-      </mesh>
-      <mesh position={[-2.5, 0.3, 6.6]} scale={[1, 0.55, 1]}>
-        <sphereGeometry args={[0.55, 14, 10]} />
-        <meshLambertMaterial color={SAGE} />
-      </mesh>
-      {/* rest-room floor cushions */}
-      {(
-        [
-          [-11.5, 7.2], [-10.3, 6.5], [-7.7, 6.5], [-6.5, 7.2],
-        ] as const
-      ).map(([x, z], i) => (
-        <mesh key={i} position={[x, 0.07, z]}>
-          <cylinderGeometry args={[0.42, 0.46, 0.13, 16]} />
-          <meshLambertMaterial color={i % 2 === 0 ? "#f0d9cf" : "#d9e6dd"} />
-        </mesh>
-      ))}
-      {/* pendant warm discs */}
-      {(
-        [
-          [8.3, 5.6], [10.4, 5.6], [0.2, 6.0], [-13.2, -0.2], [-9.0, 7.3],
-        ] as const
-      ).map(([x, z], i) => (
-        <mesh key={i} position={[x, 3.92, z]}>
-          <cylinderGeometry args={[0.13, 0.13, 0.03, 12]} />
-          <meshBasicMaterial color="#ffd9a4" />
-        </mesh>
-      ))}
-      {/* coffee machine steam anchor is animated separately */}
-    </group>
-  );
-}
-
-/** Coffee machine steam: three rising wisps. */
-function CoffeeSteam() {
-  const group = useRef<THREE.Group>(null);
-  useFrame(({ clock }) => {
-    const g = group.current;
-    if (!g) return;
-    const t = clock.elapsedTime;
-    g.children.forEach((child, i) => {
-      const phase = (t * 0.5 + i / 3) % 1;
-      child.position.y = 1.55 + phase * 0.55;
-      const s = 0.05 + phase * 0.07;
-      child.scale.setScalar(s);
-      const mat = (child as THREE.Mesh).material as THREE.MeshBasicMaterial;
-      mat.opacity = 0.5 * (1 - phase) * (0.4 + 0.6 * Math.sin(phase * Math.PI));
-    });
-  });
-  const mat = useMemo(
-    () => new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.4, depthWrite: false }),
-    [],
-  );
-  return (
-    <group ref={group} position={[-13.55, 0, -0.95]}>
-      {[0, 1, 2].map((i) => (
-        <mesh key={i} material={mat.clone()}>
-          <sphereGeometry args={[1, 8, 6]} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-/** Wall-attached decor per side (fades with its wall). */
-function WestWallDecor() {
-  const signs = useMemo(() => ({ kopi: createSign("POJOK KOPI", "#f59e0b") }), []);
-  const posters = useMemo(() => [createPoster("hooks"), createPoster("chart")], []);
-  return (
-    <group>
-      <mesh position={[-FLOOR_W / 2 - 0.22, 4.1, -0.2]} rotation-y={Math.PI / 2}>
-        <planeGeometry args={[2.1, 0.6]} />
-        <meshBasicMaterial map={signs.kopi} toneMapped={false} transparent />
-      </mesh>
-      <mesh position={[-FLOOR_W / 2 - 0.22, 3.4, 2.6]} rotation-y={Math.PI / 2}>
-        <planeGeometry args={[1.3, 1.7]} />
-        <meshBasicMaterial map={posters[1]} toneMapped={false} />
-      </mesh>
-      <mesh position={[-FLOOR_W / 2 - 0.22, 3.4, 4.15]} rotation-y={Math.PI / 2}>
-        <planeGeometry args={[1.3, 1.7]} />
-        <meshBasicMaterial map={posters[0]} toneMapped={false} />
-      </mesh>
-    </group>
-  );
-}
-
-function SouthWallDecor() {
-  const signs = useMemo(
-    () => ({
-      rehat: createSign("RUANG REHAT", "#10b981"),
-      garage: createSign("CREW GARAGE", "#232746", 300, 72),
-      meeting: createSign("MEETING ROOM", "#0ea5e9", 300, 72),
-      boss: createSign("BOSS · KAMU", "#7c3aed", 300, 72),
+/** Emissive shades, glow halos, floor pools and the warm point lights. */
+function NightLights({ lampPos }: { lampPos: readonly [number, number] }) {
+  const shadeMat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#ffd9a4" }), []);
+  const glowTex = useMemo(() => createGlowSprite(), []);
+  const poolMat = useMemo(
+    () => new THREE.MeshBasicMaterial({
+      map: glowTex, color: "#ffb45e", transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false,
     }),
-    [],
+    [glowTex],
   );
-  const posters = useMemo(() => [createPoster("play")], []);
+  const bulbMat = useMemo(
+    () => new THREE.SpriteMaterial({
+      map: glowTex, color: "#ffdfae", transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    }),
+    [glowTex],
+  );
+  const apex = useRef<THREE.PointLight>(null);
+  const meeting = useRef<THREE.PointLight>(null);
+  const lounge = useRef<THREE.PointLight>(null);
+  const open = useRef<THREE.PointLight>(null);
+  const dayShade = useMemo(() => new THREE.Color("#e9e1cd"), []);
+  const nightShade = useMemo(() => new THREE.Color("#ffcf96"), []);
+
+  useFrame(() => {
+    const st = useHqStore.getState();
+    const { night } = effectiveDayFactors(st.hour, st.mode);
+    const warm = 0.12 + night * 0.88; // lamps stay faintly on by day, full glow at night
+    if (apex.current) apex.current.intensity = 11 * warm;
+    if (meeting.current) meeting.current.intensity = 9 * warm;
+    if (lounge.current) lounge.current.intensity = 8 * warm;
+    if (open.current) open.current.intensity = 8.5 * (night * 0.9);
+    poolMat.opacity = 0.2 * night;
+    bulbMat.opacity = 0.6 * warm;
+    shadeMat.color.copy(dayShade).lerp(nightShade, warm);
+  });
+
   return (
     <group>
-      <mesh position={[-9.3, 4.5, FLOOR_D / 2 - 0.04]} rotation-y={Math.PI}>
-        <planeGeometry args={[2.3, 0.65]} />
-        <meshBasicMaterial map={signs.rehat} toneMapped={false} transparent />
+      {/* apex tripod shade + meeting bench lamp + lounge lamp shades */}
+      <mesh position={[lampPos[0], 1.68, lampPos[1]]} material={shadeMat}>
+        <cylinderGeometry args={[0.17, 0.27, 0.32, 16, 1, true]} />
       </mesh>
-      <mesh position={[3.4, 3.7, FLOOR_D / 2 - 0.04]} rotation-y={Math.PI}>
-        <planeGeometry args={[1.4, 1.85]} />
-        <meshBasicMaterial map={posters[0]} toneMapped={false} />
+      <mesh position={[6.7, 0.86, -5.62]} material={shadeMat}>
+        <cylinderGeometry args={[0.1, 0.16, 0.2, 12, 1, true]} />
       </mesh>
-      <mesh position={[8.35, 4.2, FLOOR_D / 2 - 0.04]} rotation-y={Math.PI}>
-        <planeGeometry args={[2.4, 0.58]} />
-        <meshBasicMaterial map={signs.garage} toneMapped={false} transparent />
+      <mesh position={[7.5, 1.58, 1.05]} material={shadeMat}>
+        <cylinderGeometry args={[0.15, 0.23, 0.28, 14, 1, true]} />
       </mesh>
-      <mesh position={[9.35, 4.55, 2.12]}>
-        <planeGeometry args={[2.3, 0.56]} />
-        <meshBasicMaterial map={signs.meeting} toneMapped={false} transparent />
-      </mesh>
-      <mesh position={[9.35, 4.55, -2.88]}>
-        <planeGeometry args={[2.3, 0.56]} />
-        <meshBasicMaterial map={signs.boss} toneMapped={false} transparent />
-      </mesh>
-    </group>
-  );
-}
 
-/** Entry door + big logo sign — attached to their walls so they fade together. */
-function NorthWallExtras() {
-  const logo = useMemo(() => createDarkSign("CLIPYARD", "#f472b6", 420, 96), []);
-  return (
-    <group>
-      <mesh position={[5.6, 4.55, -FLOOR_D / 2 + 0.05]}>
-        <planeGeometry args={[3.3, 0.75]} />
-        <meshBasicMaterial map={logo} toneMapped={false} transparent />
-      </mesh>
-    </group>
-  );
-}
+      <pointLight ref={apex} position={[lampPos[0] + 0.15, 1.75, lampPos[1] + 0.15]} color="#ffb45e" distance={11} decay={1.9} />
+      <pointLight ref={meeting} position={[5.2, 2.4, -3.6]} color="#ffc98a" distance={10} decay={1.9} />
+      <pointLight ref={lounge} position={[7.2, 1.7, 1.3]} color="#ffb45e" distance={9} decay={1.9} />
+      <pointLight ref={open} position={[-3.2, 2.7, 0.2]} color="#ffd2a0" distance={13} decay={1.9} />
 
-function SouthWallDoor() {
-  const doorTex = useMemo(() => createSign("MASUK", "#87a98c", 256, 64), []);
-  return (
-    <group position={[-4.6, 0, FLOOR_D / 2 + 0.02]}>
-      <mesh position={[0, 1.45, -0.16]}>
-        <boxGeometry args={[1.5, 2.9, 0.12]} />
-        <meshLambertMaterial color={WOOD} />
-      </mesh>
-      <mesh position={[0, 2.95, -0.16]}>
-        <boxGeometry args={[1.7, 0.14, 0.18]} />
-        <meshLambertMaterial color={NAVY} />
-      </mesh>
-      <mesh position={[0.55, 1.5, -0.24]}>
-        <cylinderGeometry args={[0.035, 0.035, 0.35, 8]} />
-        <meshLambertMaterial color="#b9bed4" />
-      </mesh>
-      <mesh position={[0, 3.35, -0.22]}>
-        <planeGeometry args={[1.2, 0.3]} />
-        <meshBasicMaterial map={doorTex} toneMapped={false} transparent />
-      </mesh>
+      {/* halos */}
+      <sprite position={[lampPos[0], 1.68, lampPos[1]]} material={bulbMat} scale={[1.5, 1.5, 1]} renderOrder={4} />
+      <sprite position={[6.7, 0.86, -5.62]} material={bulbMat} scale={[0.8, 0.8, 1]} renderOrder={4} />
+      <sprite position={[7.5, 1.58, 1.05]} material={bulbMat} scale={[1.2, 1.2, 1]} renderOrder={4} />
+
+      {/* warm pools on the floor */}
+      {([
+        [lampPos[0] + 0.3, lampPos[1] + 0.3, 3.4],
+        [5.2, -3.6, 4.6],
+        [7.1, 1.5, 3.6],
+        [-3.2, 0.2, 6.2],
+      ] as const).map(([x, z, s], i) => (
+        <mesh key={i} rotation-x={-Math.PI / 2} position={[x, 0.03, z]} material={poolMat} renderOrder={2}>
+          <planeGeometry args={[s, s]} />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -1117,18 +677,10 @@ function SouthWallDoor() {
 
 function OfficeCat() {
   const group = useRef<THREE.Group>(null);
-  const tailA = useRef<THREE.Group>(null);
-  const tailB = useRef<THREE.Group>(null);
-  const bodyTilt = useRef<THREE.Group>(null);
+  const tail = useRef<THREE.Group>(null);
   const waypoints = useMemo(
-    () =>
-      [
-        [-3.2, 3.4],
-        [1.6, 4.3],
-        [4.2, 2.4],
-        [2.0, 1.2],
-        [-2.2, 2.0],
-      ].map(([x, z]) => new THREE.Vector3(x, 0.14, z)),
+    () => [[-2.3, -1.3], [0.7, -0.5], [1.1, 1.3], [-0.5, 0.7], [-2.7, 0.5], [-3.4, -2.2]]
+      .map(([x, z]) => new THREE.Vector3(x, 0.14, z)),
     [],
   );
   const anim = useRef({ i: 0, wait: 0 });
@@ -1137,13 +689,10 @@ function OfficeCat() {
     if (!g) return;
     const s = anim.current;
     const t = rs.clock.elapsedTime;
+    if (tail.current) tail.current.rotation.y = Math.sin(t * 2.2) * 0.35;
     if (s.wait > 0) {
       s.wait -= delta;
-      // sitting: gentle breathing, tail curls slowly
-      g.position.y = 0.14 + Math.abs(Math.sin(t * 3)) * 0.02;
-      if (tailA.current) tailA.current.rotation.x = -0.5 + Math.sin(t * 2) * 0.15;
-      if (tailB.current) tailB.current.rotation.x = 0.9 + Math.sin(t * 2 + 1) * 0.25;
-      if (bodyTilt.current) bodyTilt.current.rotation.x = 0;
+      g.position.y = 0.14 + Math.abs(Math.sin(t * 3)) * 0.015;
       return;
     }
     const target = waypoints[s.i];
@@ -1151,63 +700,51 @@ function OfficeCat() {
     const dist = dir.length();
     if (dist < 0.15) {
       s.i = (s.i + 1) % waypoints.length;
-      s.wait = 1.2 + Math.random() * 2;
+      s.wait = 1.4 + Math.random() * 2.4;
       return;
     }
     dir.normalize();
-    g.position.addScaledVector(dir, Math.min(dist, delta * 0.85));
-    g.position.y = 0.14 + Math.abs(Math.sin(t * 10)) * 0.05;
-    const targetYaw = Math.atan2(dir.x, dir.z);
-    const diff = ((targetYaw - g.rotation.y + Math.PI) % (Math.PI * 2)) - Math.PI;
+    g.position.addScaledVector(dir, Math.min(dist, delta * 0.8));
+    g.position.y = 0.14 + Math.abs(Math.sin(t * 10)) * 0.04;
+    const ty = Math.atan2(dir.x, dir.z);
+    const diff = ((ty - g.rotation.y + Math.PI) % (Math.PI * 2)) - Math.PI;
     g.rotation.y += diff * (1 - Math.exp(-delta * 6));
-    if (tailA.current) tailA.current.rotation.x = -0.9;
-    if (tailB.current) tailB.current.rotation.y = Math.sin(t * 8) * 0.4;
-    if (bodyTilt.current) bodyTilt.current.rotation.x = 0;
   });
   return (
-    <group ref={group} position={[-3.2, 0.14, 3.4]}>
-      <group ref={bodyTilt}>
-        <mesh rotation-z={Math.PI / 2}>
-          <capsuleGeometry args={[0.13, 0.34, 6, 10]} />
-          <meshLambertMaterial color="#e2a75e" />
+    <group ref={group} position={[-2.3, 0.14, -1.3]}>
+      <mesh rotation-x={Math.PI / 2} castShadow>
+        <capsuleGeometry args={[0.12, 0.3, 6, 10]} />
+        <meshStandardMaterial color="#dd9a54" roughness={0.95} />
+      </mesh>
+      <group position={[0, 0.12, 0.24]}>
+        <mesh castShadow>
+          <sphereGeometry args={[0.12, 12, 10]} />
+          <meshStandardMaterial color="#dd9a54" roughness={0.95} />
         </mesh>
-        <group position={[0, 0.13, 0.26]}>
-          <mesh>
-            <sphereGeometry args={[0.13, 12, 10]} />
-            <meshLambertMaterial color="#e2a75e" />
+        {[-0.055, 0.055].map((x) => (
+          <mesh key={x} position={[x, 0.11, 0]}>
+            <coneGeometry args={[0.042, 0.085, 6]} />
+            <meshStandardMaterial color="#c0813f" roughness={0.95} />
           </mesh>
-          {[-0.06, 0.06].map((x) => (
-            <mesh key={x} position={[x, 0.12, 0]}>
-              <coneGeometry args={[0.045, 0.09, 6]} />
-              <meshLambertMaterial color="#c98a4b" />
-            </mesh>
-          ))}
-          {[-0.05, 0.05].map((x) => (
-            <mesh key={x} position={[x, 0.02, 0.11]}>
-              <sphereGeometry args={[0.02, 8, 6]} />
-              <meshBasicMaterial color="#232746" />
-            </mesh>
-          ))}
-        </group>
+        ))}
+        {[-0.045, 0.045].map((x) => (
+          <mesh key={x} position={[x, 0.02, 0.105]}>
+            <sphereGeometry args={[0.018, 8, 6]} />
+            <meshBasicMaterial color="#1b1e28" />
+          </mesh>
+        ))}
       </group>
-      {/* two-segment tail */}
-      <group ref={tailA} position={[0, 0.06, -0.26]}>
-        <mesh rotation-x={0.9} position={[0, 0.05, -0.06]}>
-          <capsuleGeometry args={[0.03, 0.16, 4, 8]} />
-          <meshLambertMaterial color="#c98a4b" />
+      <group ref={tail} position={[0, 0.07, -0.24]}>
+        <mesh rotation-x={-0.7} position={[0, 0.08, -0.05]}>
+          <capsuleGeometry args={[0.028, 0.2, 4, 8]} />
+          <meshStandardMaterial color="#c0813f" roughness={0.95} />
         </mesh>
-        <group ref={tailB} position={[0, 0.14, -0.14]}>
-          <mesh rotation-x={0.6} position={[0, 0.04, -0.05]}>
-            <capsuleGeometry args={[0.024, 0.14, 4, 8]} />
-            <meshLambertMaterial color="#b57a40" />
-          </mesh>
-        </group>
       </group>
     </group>
   );
 }
 
-/* ---------------------------------- diecast garage ---------------------------------- */
+/* ---------------------------------- diecast garage (credenza) ---------------------------------- */
 
 function wheelGeo() {
   const g = new THREE.CylinderGeometry(0.07, 0.07, 0.05, 10);
@@ -1228,98 +765,52 @@ function vehicleBodyGeometry(kind: VehicleInfo["kind"]): THREE.BufferGeometry {
       parts.push(boxAt(0.26, 0.12, 0.4, 0, 0.13, 0), boxAt(0.23, 0.11, 0.24, 0, 0.24, -0.05));
       break;
     case "pickup":
-      parts.push(
-        boxAt(0.26, 0.11, 0.5, 0, 0.12, 0),
-        boxAt(0.24, 0.11, 0.17, 0, 0.23, 0.13),
-        boxAt(0.22, 0.07, 0.03, 0, 0.2, -0.23),
-      );
+      parts.push(boxAt(0.26, 0.11, 0.5, 0, 0.12, 0), boxAt(0.24, 0.11, 0.17, 0, 0.23, 0.13), boxAt(0.22, 0.07, 0.03, 0, 0.2, -0.23));
       break;
     case "scooter":
       parts.push(
-        boxAt(0.09, 0.05, 0.32, 0, 0.1, 0),
-        boxAt(0.04, 0.3, 0.04, 0, 0.24, 0.13),
-        boxAt(0.18, 0.03, 0.03, 0, 0.39, 0.15),
-        boxAt(0.11, 0.06, 0.17, 0, 0.22, -0.05),
+        boxAt(0.09, 0.05, 0.32, 0, 0.1, 0), boxAt(0.04, 0.3, 0.04, 0, 0.24, 0.13),
+        boxAt(0.18, 0.03, 0.03, 0, 0.39, 0.15), boxAt(0.11, 0.06, 0.17, 0, 0.22, -0.05),
       );
       break;
   }
   return merge(parts);
 }
 
-function vehicleWindows(kind: VehicleInfo["kind"]): THREE.BufferGeometry | null {
-  switch (kind) {
-    case "sedan":
-      return merge([boxAt(0.235, 0.07, 0.2, 0, 0.25, -0.02)]);
-    case "van":
-      return merge([boxAt(0.28, 0.08, 0.12, 0, 0.24, 0.1)]);
-    case "hatch":
-      return merge([boxAt(0.235, 0.07, 0.18, 0, 0.25, -0.05)]);
-    case "pickup":
-      return merge([boxAt(0.245, 0.07, 0.1, 0, 0.24, 0.13)]);
-    case "scooter":
-      return null;
-  }
-}
-
-const DIECAST_TOP_Y = 1.515;
+const DIECAST_Y = CREDENZA.topY + 0.025;
 
 function DiecastGarage() {
   const select = useHqStore((s) => s.select);
   const wheelRef = useRef<THREE.InstancedMesh>(null);
-  const glassMat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#1b2140" }), []);
-  const bodies = useMemo(
-    () => VEHICLES.map((v) => ({ info: v, geo: vehicleBodyGeometry(v.kind) })),
-    [],
-  );
+  const bodies = useMemo(() => VEHICLES.map((v) => ({ info: v, geo: vehicleBodyGeometry(v.kind) })), []);
   const wheels = useMemo(() => {
     const geo = wheelGeo();
-    const mat = new THREE.MeshLambertMaterial({ color: "#20263f" });
+    const mat = new THREE.MeshStandardMaterial({ color: "#20263f", roughness: 0.7 });
     const mats: THREE.Matrix4[] = [];
     const dummy = new THREE.Object3D();
     for (const v of VEHICLES) {
-      const [vx, vz] = v.pos;
-      const off: Array<[number, number, number]> =
-        v.kind === "scooter"
-          ? [
-              [0, 0.06, 0.14],
-              [0, 0.06, -0.14],
-            ]
-          : [
-              [0.135, 0.07, 0.16],
-              [-0.135, 0.07, 0.16],
-              [0.135, 0.07, -0.16],
-              [-0.135, 0.07, -0.16],
-            ];
+      const off: Array<[number, number, number]> = v.kind === "scooter"
+        ? [[0, 0.06, 0.14], [0, 0.06, -0.14]]
+        : [[0.135, 0.07, 0.16], [-0.135, 0.07, 0.16], [0.135, 0.07, -0.16], [-0.135, 0.07, -0.16]];
+      dummy.rotation.set(0, v.yaw, 0);
+      const m = new THREE.Matrix4().compose(
+        new THREE.Vector3(v.pos[0], DIECAST_Y, v.pos[1]),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, v.yaw, 0)),
+        new THREE.Vector3(1, 1, 1),
+      );
       for (const o of off) {
-        dummy.position.set(vx + o[0], DIECAST_TOP_Y + o[1], vz + o[2]);
-        dummy.rotation.set(0, v.yaw, 0);
+        dummy.position.set(o[0], o[1], o[2]);
         dummy.updateMatrix();
-        mats.push(dummy.matrix.clone());
+        mats.push(new THREE.Matrix4().multiplyMatrices(m, dummy.matrix));
       }
     }
     return { geo, mat, mats };
   }, []);
 
-  const winGeos = useMemo(() => {
-    const list = VEHICLES.map((v) => {
-      const g = vehicleWindows(v.kind);
-      if (!g) return null;
-      g.applyMatrix4(
-        new THREE.Matrix4().compose(
-          new THREE.Vector3(v.pos[0], DIECAST_TOP_Y, v.pos[1]),
-          new THREE.Quaternion().setFromEuler(new THREE.Euler(0, v.yaw, 0)),
-          new THREE.Vector3(1, 1, 1),
-        ),
-      );
-      return g;
-    }).filter(Boolean) as THREE.BufferGeometry[];
-    return merge(list);
-  }, []);
-
   useLayoutEffect(() => {
     const inst = wheelRef.current;
     if (!inst) return;
-    wheels.mats.forEach((m, i) => inst.setMatrixAt(i, m));
+    wheels.mats.forEach((mm, i) => inst.setMatrixAt(i, mm));
     inst.instanceMatrix.needsUpdate = true;
   }, [wheels]);
 
@@ -1331,25 +822,21 @@ function DiecastGarage() {
   return (
     <group>
       {bodies.map(({ info, geo }) => (
-        <group key={info.id} position={[info.pos[0], DIECAST_TOP_Y, info.pos[1]]} rotation-y={info.yaw}>
+        <group key={info.id} position={[info.pos[0], DIECAST_Y, info.pos[1]]} rotation-y={info.yaw}>
           <mesh
             geometry={geo}
-            onClick={(e) => {
-              e.stopPropagation();
-              select({ kind: "vehicle", id: info.id });
-            }}
+            castShadow
+            onClick={(e) => { e.stopPropagation(); select({ kind: "vehicle", id: info.id }); }}
             onPointerOver={(e) => hover(e, true)}
             onPointerOut={(e) => hover(e, false)}
           >
-            <meshLambertMaterial color={info.color} />
+            <meshStandardMaterial color={info.color} roughness={0.35} metalness={0.35} />
           </mesh>
+          {/* generous invisible hit-box */}
           <mesh
             position={[0, 0.16, 0]}
             visible={false}
-            onClick={(e) => {
-              e.stopPropagation();
-              select({ kind: "vehicle", id: info.id });
-            }}
+            onClick={(e) => { e.stopPropagation(); select({ kind: "vehicle", id: info.id }); }}
             onPointerOver={(e) => hover(e, true)}
             onPointerOut={(e) => hover(e, false)}
           >
@@ -1358,106 +845,64 @@ function DiecastGarage() {
         </group>
       ))}
       <instancedMesh ref={wheelRef} args={[wheels.geo, wheels.mat, wheels.mats.length]} />
-      <mesh geometry={winGeos} material={glassMat} />
     </group>
   );
 }
 
-/* -------------------------- warm night lights -------------------------- */
+/* ---------------------------------- blob contact shadows ---------------------------------- */
 
-/** Floor pools + bulbs that fade in after dark (pendant lamps + floor lamps). */
-const LIGHT_SOURCES: [number, number, number, number][] = [
-  // x, z, pool radius, bulb height
-  [8.3, 5.6, 1.7, 3.9],
-  [10.4, 5.6, 1.7, 3.9],
-  [0.2, 6.0, 1.7, 3.9],
-  [-13.2, -0.2, 1.7, 3.9],
-  [-9.0, 7.3, 1.7, 3.9],
-  [-7.1, 8.45, 1.25, 1.8],
-  [3.5, 7.7, 1.25, 2.2],
-];
-
-function WarmNightLights() {
-  const tex = useMemo(() => createGlowSprite(), []);
-  const poolMat = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        map: tex,
-        color: "#ffd9a4",
-        transparent: true,
-        opacity: 0,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }),
+function ContactShadows({ tex }: { tex: THREE.Texture }) {
+  const spots: Array<[number, number, number, number]> = [
+    ...PODS.map(([x, z]) => [x, z, 2.6, 3.4] as [number, number, number, number]),
+    [SPARE_POD[0], SPARE_POD[1], 2.6, 3.4],
+    [MEETING_TABLE.x, MEETING_TABLE.z, 4.6, 3.2],
+    [7.3, 2.9, 1.8, 3.2],
+    [CREDENZA.x + 0.3, CREDENZA.z, 1.4, 4.2],
+    [5.0, -5.6, 3.4, 1.1],
+  ];
+  const mat = useMemo(
+    () => new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.85, depthWrite: false }),
     [tex],
   );
-  const bulbMat = useMemo(
-    () =>
-      new THREE.SpriteMaterial({
-        map: tex,
-        color: "#ffe3b0",
-        transparent: true,
-        opacity: 0,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }),
-    [tex],
-  );
-  useFrame(() => {
-    const st = useHqStore.getState();
-    const { night } = effectiveDayFactors(st.hour, st.mode);
-    poolMat.opacity = 0.4 * night;
-    bulbMat.opacity = 0.7 * night;
-  });
-  useLayoutEffect(() => {
-    return () => {
-      tex.dispose();
-      poolMat.dispose();
-      bulbMat.dispose();
-    };
-  }, [tex, poolMat, bulbMat]);
   return (
     <group>
-      {LIGHT_SOURCES.map(([x, z, r], i) => (
-        <mesh key={`pool${i}`} rotation-x={-Math.PI / 2} position={[x, 0.035, z]} material={poolMat} renderOrder={2}>
-          <planeGeometry args={[r * 2, r * 2]} />
+      {spots.map(([x, z, w, d], i) => (
+        <mesh key={i} rotation-x={-Math.PI / 2} position={[x, 0.012, z]} material={mat} renderOrder={1}>
+          <planeGeometry args={[w, d]} />
         </mesh>
-      ))}
-      {LIGHT_SOURCES.map(([x, z, , h], i) => (
-        <sprite key={`bulb${i}`} position={[x, h, z]} material={bulbMat} scale={[0.9, 0.9, 1]} renderOrder={2} />
       ))}
     </group>
   );
 }
 
-/* ---------------------------------- fading walls wrapper ---------------------------------- */
+/* ---------------------------------- wall decor (signs) ---------------------------------- */
 
-function FadingWall({
-  side,
-  children,
-}: {
-  side: "n" | "s" | "w" | "e";
-  children: React.ReactNode;
-}) {
-  const ref = useRef<THREE.Group>(null);
-  useFrame(({ camera }) => {
-    const g = ref.current;
-    if (!g) return;
-    const behind =
-      side === "n" ? camera.position.z < -4
-      : side === "s" ? camera.position.z > 4
-      : side === "w" ? camera.position.x < -6
-      : camera.position.x > 6;
-    if (g.visible === behind) g.visible = !behind;
-  });
-  return <group ref={ref}>{children}</group>;
+function WallSigns() {
+  const logo = useMemo(() => createDarkSign("CLIPYARD", "#f59e0b", 420, 96), []);
+  const garage = useMemo(() => createDarkSign("CREW GARAGE", "#22d3ee", 420, 96), []);
+  return (
+    <group>
+      <mesh position={[-5.7, 2.6, -ROOM.D / 2 + 0.04]}>
+        <planeGeometry args={[2.3, 0.53]} />
+        <meshBasicMaterial map={logo} toneMapped={false} transparent />
+      </mesh>
+      <mesh position={[-ROOM.W / 2 + 0.04, 1.32, CREDENZA.z]} rotation-y={Math.PI / 2}>
+        <planeGeometry args={[1.7, 0.39]} />
+        <meshBasicMaterial map={garage} toneMapped={false} transparent />
+      </mesh>
+    </group>
+  );
 }
 
 /* ---------------------------------- world root ---------------------------------- */
 
+const BUCKET_ORDER: Array<keyof RoomMats> = [
+  "wall", "slab", "wood", "woodDark", "pedestal", "black", "dark", "chair",
+  "white", "sofa", "sofaLight", "cream", "terra", "sage", "potW", "frame",
+];
+
 export function World() {
-  const shell = useShellGeometries();
-  const furn = useFurnitureGeometries();
+  const { geos, windows, lampPos } = useRoomGeometries();
   const mats = useRoomMaterials();
   const floorTex = useMemo(() => createFloorWood(), []);
   const blobTex = useMemo(() => createBlobShadow(), []);
@@ -1472,90 +917,55 @@ export function World() {
   );
   useLiveUpdates(live);
 
-  useLayoutEffect(() => {
-    return () => {
-      [floorTex, blobTex].forEach((t) => t.dispose());
-    };
-  }, [floorTex, blobTex]);
-
   return (
     <group>
-      <mesh rotation-x={-Math.PI / 2} position={[0.8, -0.815, 0.8]} renderOrder={0}>
-        <planeGeometry args={[FLOOR_W + 9, FLOOR_D + 9]} />
-        <meshBasicMaterial map={blobTex} transparent opacity={0.6} depthWrite={false} />
+      {/* soft ground shadow under the floating diorama */}
+      <mesh rotation-x={-Math.PI / 2} position={[0.6, -0.62, 0.6]}>
+        <planeGeometry args={[ROOM.W + 7, ROOM.D + 7]} />
+        <meshBasicMaterial map={blobTex} transparent opacity={0.65} depthWrite={false} />
       </mesh>
 
       {/* warm oak floor */}
-      <mesh rotation-x={-Math.PI / 2}>
-        <planeGeometry args={[FLOOR_W, FLOOR_D]} />
-        <meshLambertMaterial map={floorTex} />
+      <mesh rotation-x={-Math.PI / 2} receiveShadow>
+        <planeGeometry args={[ROOM.W, ROOM.D]} />
+        <meshStandardMaterial map={floorTex} roughness={0.78} />
       </mesh>
 
-      {/* tray + glass rooms */}
-      <mesh geometry={shell.tray} material={mats.tray} />
-      <mesh geometry={shell.glass} material={mats.glass} renderOrder={3} />
-      <mesh geometry={shell.glassFrame} material={mats.navy} />
-      <mesh geometry={shell.glass2} material={mats.glass} renderOrder={3} />
-      <mesh geometry={shell.glassFrame2} material={mats.navy} />
-      <mesh geometry={boxAt(8.0, 0.04, 6.8, 9.35, 0.02, 5.6)} material={mats.carpetMeeting} />
-      <mesh geometry={boxAt(8.0, 0.04, 5.6, 9.35, 0.02, -6.1)} material={mats.carpetBoss} />
+      {/* merged static geometry */}
+      {BUCKET_ORDER.map((k) => (
+        <mesh key={k} geometry={geos[k]} material={mats[k]} castShadow={k !== "wall" && k !== "slab"} receiveShadow />
+      ))}
+      <mesh geometry={geos.glass} material={mats.glass} renderOrder={3} />
 
-      <FadingWall side="n">
-        <mesh geometry={shell.wallN} material={mats.wall} />
-        <mesh geometry={shell.wallN2} material={mats.wall} />
-        <mesh geometry={shell.wainscotN} material={mats.wainscot} />
-        <NorthWindows live={live} />
-        <WallClock />
-        <NorthWallExtras />
-      </FadingWall>
-      <FadingWall side="e">
-        <mesh geometry={shell.wallE} material={mats.wall} />
-        <mesh geometry={shell.wainscotE} material={mats.wainscot} />
-        <EastWhiteboard live={live} />
-      </FadingWall>
-      <FadingWall side="w">
-        <mesh geometry={shell.wallW} material={mats.wall} />
-        <mesh geometry={shell.wainscotW} material={mats.wainscot} />
-        <WestWallDecor />
-      </FadingWall>
-      <FadingWall side="s">
-        <mesh geometry={shell.wallS} material={mats.wall} />
-        <SouthWallDecor />
-        <MeetingTV live={live} />
-        <mesh geometry={shell.wainscotS} material={mats.wainscot} />
-        <SouthWallDoor />
-      </FadingWall>
+      {/* west window skyline views */}
+      {windows.map((cz) => (
+        <mesh key={cz} position={[-ROOM.W / 2 - 0.42, 1.8, cz]} rotation-y={Math.PI / 2}>
+          <planeGeometry args={[2.4, 1.7]} />
+          <meshBasicMaterial map={live.skyline.tex} toneMapped={false} />
+        </mesh>
+      ))}
 
-      <WarmNightLights />
+      {/* north whiteboard (live pipeline) */}
+      <mesh position={[-1.7, 1.98, -ROOM.D / 2 + 0.13]}>
+        <planeGeometry args={[3.25, 1.78]} />
+        <meshBasicMaterial map={live.whiteboard.tex} toneMapped={false} color="#c9ccd8" />
+      </mesh>
 
-      {/* furniture */}
-      <mesh geometry={shell.white} material={mats.white} />
-      <mesh geometry={furn.white} material={mats.white} />
-      <mesh geometry={furn.navy} material={mats.navy} />
-      <mesh geometry={furn.silver} material={mats.silver} />
-      <mesh geometry={furn.wood} material={mats.wood} />
-      <mesh geometry={furn.woodDark} material={mats.woodDark} />
-      <mesh geometry={furn.cardboard} material={mats.cardboard} />
-      <mesh geometry={furn.cream} material={mats.cream} />
-      <mesh geometry={furn.gold} material={mats.gold} />
-      <mesh geometry={furn.steel} material={mats.steel} />
-      <mesh geometry={furn.pots} material={mats.terra} />
+      {/* meeting TV */}
+      <mesh position={[MEETING_TABLE.x, 2.02, -ROOM.D / 2 + 0.16]}>
+        <planeGeometry args={[3.05, 1.72]} />
+        <meshBasicMaterial map={live.meetingScreen.tex} toneMapped={false} />
+      </mesh>
 
-      <Curtains />
-      <AgentColoredParts />
-      <BlobShadows tex={blobTex} />
-      <Books />
+      <DeskProps live={live} />
       <Foliage />
-      <RackLeds />
-      <Mugs />
-      <DeskLabels />
-      <DeskScreens live={live} />
-      <Decor />
-      <CoffeeSteam />
+      <LoungeSoft />
+      <WallClock />
+      <WallSigns />
+      <ContactShadows tex={blobTex} />
+      <NightLights lampPos={lampPos} />
       <OfficeCat />
       <DiecastGarage />
     </group>
   );
 }
-
-export { WALL_H };

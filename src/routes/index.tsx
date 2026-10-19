@@ -33,7 +33,7 @@ function LandingPage() {
           <div className="flex flex-col items-start gap-10 lg:flex-row lg:items-end lg:gap-20">
             <div className="max-w-2xl space-y-6">
               <div className="inline-flex items-center gap-2 rounded-full border border-[#232746]/10 bg-white/60 px-3.5 py-1.5 text-[11px] font-extrabold tracking-[0.12em] text-[#6d28d9] shadow-sm backdrop-blur-md">
-                <Sparkles className="h-3.5 w-3.5" /> STUDIO DIORAMA V2
+                <Sparkles className="h-3.5 w-3.5" /> GLASS DIORAMA V3
               </div>
               <h1 className="font-display text-[clamp(2.5rem,6vw,4.5rem)] font-extrabold leading-[0.95] tracking-tight text-[#232746]">
                 Kantor Virtual
@@ -41,8 +41,8 @@ function LandingPage() {
                 <span className="text-[#6d28d9]">CLIPYARD</span>
               </h1>
               <p className="max-w-md text-[15.5px] font-medium leading-relaxed text-[#6b6b7a]">
-                Ruang studio isometrik 3D dengan 6 agen hoodie, jam simulasi 9–5,
-                pipeline hidup, dan armada diecast — semua dari satu lantai open-plan.
+                Diorama kantor kaca isometrik 3D dengan 6 robot agen AI, jam simulasi 9–5,
+                pipeline hidup, dan armada diecast — hangat menyala di atas panggung navy gelap.
               </p>
               <div className="flex flex-wrap items-center gap-3 pt-1">
                 <Link
@@ -62,8 +62,8 @@ function LandingPage() {
             <div className="relative w-full lg:w-[520px] lg:shrink-0">
               <div className="relative overflow-hidden rounded-[28px] border border-[#232746]/8 bg-gradient-to-br from-white/80 to-[#f0f2fb]/60 shadow-[0_28px_60px_-24px_rgba(35,39,70,0.28)] backdrop-blur-xl">
                 <img
-                  src="/screenshots/studio-day.png"
-                  alt="CLIPYARD Studio preview"
+                  src="/screenshots/studio-night.png"
+                  alt="CLIPYARD glass diorama di malam hari"
                   className="w-full object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#232746]/20 via-transparent to-transparent" />
@@ -95,8 +95,8 @@ function LandingPage() {
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           <FeatureCard
             icon={<Zap className="h-5 w-5 text-[#22d3ee]" />}
-            title="6 Agen Hoodie"
-            desc="Maskot dengan status hidup: kerja, rapat, rehat, atau error — semua sinkron dengan jam sim."
+            title="6 Robot Agen"
+            desc="Robot putih bervisor menyala dengan status hidup: kerja, rapat, rehat, atau error — semua sinkron dengan jam sim."
           />
           <FeatureCard
             icon={<Clock className="h-5 w-5 text-[#a78bfa]" />}
@@ -115,13 +115,13 @@ function LandingPage() {
           />
           <FeatureCard
             icon={<Users className="h-5 w-5 text-[#f472b6]" />}
-            title="Meeting Room"
-            desc="Ruang rapat kaca dengan meja besar dan layar TV — semua agen berkumpul saat standup."
+            title="Ruang Kaca"
+            desc="Meeting room + ruang rehat berdinding kaca rangka hitam — robot masuk lewat pintu geser sungguhan."
           />
           <FeatureCard
             icon={<Sparkles className="h-5 w-5 text-[#fb923c]" />}
             title="Detailing Interior"
-            desc="Tekstur kayu oak, dinding dua warna, tanaman, rak buku pelangi, dan kucing kantor yang berjalan sendiri."
+            desc="Lantai kayu oak hangat, pod meja berpasangan, lampu tripod sudut, tanaman, dan kucing kantor yang berjalan sendiri."
           />
         </div>
       </section>
@@ -135,17 +135,17 @@ function LandingPage() {
                 Desain Setiap Bagian
               </h3>
               <p className="text-[14.5px] font-medium leading-relaxed text-[#6b6b7a]">
-                Ruangan dibagi dalam zona yang jelas: meja kerja, ruang rapat, ruang rehat,
-                pojok kopi, rak render, garasi diecast, dan dekorasi dinding. Setiap bagian
-                menggunakan palet warna yang konsisten dan geometri yang dioptimalkan.
+                Diorama kompak dua dinding: tiga pod meja berpasangan di area terbuka,
+                dua ruang kaca di sisi timur (rapat + rehat), jendela skyline malam,
+                dan credenza diecast di bawahnya. Semua menyatu di atas slab navy gelap.
               </p>
               <ul className="space-y-2.5 pt-1">
                 {[
-                  "Warna hangat: navy lembut, aksen sage, terracotta, mustard",
+                  "Palet malam hangat: krem, kayu oak, rangka hitam, aksen amber lampu",
                   "Tekstur lantai kayu oak prosedural (grain + sambungan)",
-                  "Dinding dua warna dengan band wainscot lembut",
-                  "Lampu pendant dan lampu lantai dengan pool cahaya malam",
-                  "Katak berjalan dengan animasi bernapas dan ekor dua segmen",
+                  "Partisi kaca rangka hitam ala render referensi + pintu geser",
+                  "Lampu tripod sudut + point light hangat + shadow lembut real-time",
+                  "Kucing kantor berjalan dengan animasi bernapas dan ekor bergoyang",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-2.5 text-[13.5px] font-medium text-[#6b6b7a]">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#047857]" />
@@ -156,8 +156,8 @@ function LandingPage() {
             </div>
             <div className="relative overflow-hidden rounded-[28px] border border-[#232746]/8 shadow-[0_28px_60px_-24px_rgba(35,39,70,0.22)]">
               <img
-                src="/screenshots/studio-night.png"
-                alt="CLIPYARD Studio night mode"
+                src="/screenshots/studio-day.png"
+                alt="CLIPYARD glass diorama di siang hari"
                 className="w-full object-cover"
               />
             </div>
@@ -174,13 +174,13 @@ function LandingPage() {
             </h3>
             <p className="mt-4 text-[14.5px] font-medium leading-relaxed text-[#a9b4d0]">
               Setiap bagian dioptimalkan untuk kecepatan dan kualitas visual: geometri statis
-              di-merge, instancing untuk buku dan daun, tanpa shadow map (blob shadows),
-              canvas texture di-redraw hanya saat diperlukan, dan AdaptiveDpr menurunkan
-              resolusi otomatis saat perangkat berat.
+              di-merge per material, instancing untuk daun dan mug, satu shadow map lembut
+              untuk kedalaman sinematik, canvas texture di-redraw hanya saat diperlukan,
+              dan AdaptiveDpr menurunkan resolusi otomatis saat perangkat berat.
             </p>
             <div className="mt-8 grid gap-4 sm:grid-cols-3">
               <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-                <p className="text-2xl font-extrabold text-white">~15</p>
+                <p className="text-2xl font-extrabold text-white">±17</p>
                 <p className="mt-1 text-[12px] font-semibold text-[#a9b4d0]">Draw call statis</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
@@ -188,8 +188,8 @@ function LandingPage() {
                 <p className="mt-1 text-[12px] font-semibold text-[#a9b4d0]">Refresh whiteboard</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-                <p className="text-2xl font-extrabold text-white">360°</p>
-                <p className="mt-1 text-[12px] font-semibold text-[#a9b4d0]">Orbit kamera bebas</p>
+                <p className="text-2xl font-extrabold text-white">±38°</p>
+                <p className="mt-1 text-[12px] font-semibold text-[#a9b4d0]">Orbit isometrik terkunci</p>
               </div>
             </div>
           </div>

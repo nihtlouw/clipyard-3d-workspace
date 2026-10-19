@@ -94,7 +94,8 @@ export const useHqStore = create<HqState>((set, get) => ({
   speed: 0.2,
   labels: true,
   autoOrbit: false,
-  mode: "auto",
+  // default to the reference look: warm night lighting while the crew is on shift
+  mode: "night",
   selection: null,
   focusToken: 0,
   resetViewToken: 0,

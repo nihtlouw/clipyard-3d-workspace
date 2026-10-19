@@ -89,10 +89,10 @@ export function createSkyline(): SkylineTex {
 
   function redraw(daylight: number, sunset: number, hour: number) {
     const night = 1 - daylight;
-    // sky gradient
-    const top = mixColor([58, 74, 158], [126, 176, 235], daylight);
+    // sky gradient — deep navy at night (reference windows read near-black blue)
+    const top = mixColor([13, 19, 46], [126, 176, 235], daylight);
     if (sunset > 0) blendInto(top, [244, 154, 104], sunset * 0.75);
-    const bottom = mixColor([196, 204, 236], [214, 232, 248], daylight);
+    const bottom = mixColor([34, 44, 86], [214, 232, 248], daylight);
     if (sunset > 0) blendInto(bottom, [255, 186, 130], sunset * 0.8);
 
     const grad = ctx.createLinearGradient(0, 0, 0, SKY_H);
@@ -589,18 +589,21 @@ export function createNameplate(name: string, color: string) {
     if (next === lastText) return;
     lastText = next;
     ctx.clearRect(0, 0, 360, 84);
-    // pill
-    ctx.fillStyle = color;
+    // dark glass pill (matches the night diorama + dark HUD)
+    ctx.fillStyle = "rgba(13,17,34,0.92)";
     const text = `${name}  ·  ${next}`;
     ctx.font = "800 30px system-ui, sans-serif";
     const w = ctx.measureText(text).width + 74;
     roundRect(ctx, (360 - w) / 2, 12, w, 60, 30);
-    // white dot + initial
-    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.strokeStyle = "rgba(255,255,255,0.22)";
+    ctx.lineWidth = 2;
+    roundRectStroke(ctx, (360 - w) / 2, 12, w, 60, 30);
+    // agent-color dot + initial
+    ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc((360 - w) / 2 + 26, 42, 13, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = color;
+    ctx.fillStyle = "#0d1120";
     ctx.font = "800 20px system-ui, sans-serif";
     ctx.fillText(name[0], (360 - w) / 2 + 20, 49);
     // label

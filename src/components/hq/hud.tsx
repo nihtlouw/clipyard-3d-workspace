@@ -43,8 +43,8 @@ export function HqHud() {
         <ViewControls />
         <ActivityFeed />
         <ClockPanel />
-        <ApprovalInbox />
         <BacklogPanel />
+        <ApprovalInbox />
         <AgentCards />
         <DetailCard />
       </div>
@@ -80,9 +80,9 @@ function FloorBadge() {
     return () => window.clearInterval(id);
   }, [source]);
 
-  if (source !== "live") return <Chip color="#6d28d9">SIM</Chip>;
+  if (source !== "live") return <Chip color="#a78bfa">SIM</Chip>;
   const stale = updatedAt > 0 && Date.now() - updatedAt > 15_000;
-  return <Chip color={stale ? "#b45309" : "#047857"}>{stale ? "LIVE·STALE" : "LIVE"}</Chip>;
+  return <Chip color={stale ? "#fbbf24" : "#34d399"}>{stale ? "LIVE·STALE" : "LIVE"}</Chip>;
 }
 
 /* ---------------------------------- top bar + stats ---------------------------------- */
@@ -90,23 +90,23 @@ function FloorBadge() {
 function TopBar() {
   return (
     <div className="pointer-events-none absolute left-2 top-2 sm:left-3 sm:top-3 flex w-auto items-start gap-2">
-      <div className="pointer-events-auto flex max-w-[calc(100vw-1rem)] items-center gap-2 rounded-2xl border border-[#232746]/8 bg-[#ffffff]/80 px-3 py-2 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl transition hover:border-[#232746]/15 hover:bg-[#ffffff]/95 sm:px-3.5 sm:py-2.5">
+      <div className="pointer-events-auto flex max-w-[calc(100vw-1rem)] items-center gap-2 rounded-2xl border border-white/10 bg-[#11162a]/88 px-3 py-2 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl transition hover:border-white/20 hover:bg-[#1a2140]/95 sm:px-3.5 sm:py-2.5">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#2e3192] via-[#4f46ba] to-[#7c3aed] shadow-[0_6px_14px_-4px_rgba(46,49,146,0.5)] sm:h-10 sm:w-10 sm:rounded-2xl">
           <Zap className="h-4 w-4 text-white sm:h-5 sm:w-5" strokeWidth={2.6} />
         </span>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="truncate text-[13px] font-extrabold tracking-tight text-[#232746] sm:text-[15px]">Kantor CLIPYARD HQ</span>
+            <span className="truncate text-[13px] font-extrabold tracking-tight text-[#eef1ff] sm:text-[15px]">Kantor CLIPYARD HQ</span>
             <FloorBadge />
           </div>
-          <p className="truncate text-[9px] font-semibold text-[#7a81a6] sm:text-[10.5px]">AWAN7 Studio · 6 agen aktif</p>
+          <p className="truncate text-[9px] font-semibold text-[#98a1c4] sm:text-[10.5px]">AWAN7 Studio · 6 agen aktif</p>
         </div>
       </div>
       <div className="pointer-events-auto flex items-center gap-2">
         <SoundPill />
         <a
           href="/"
-          className="inline-flex items-center gap-1 rounded-full border border-[#232746]/10 bg-[#ffffff]/60 px-2.5 py-2 text-[10px] font-semibold text-[#232746] shadow-sm backdrop-blur-xl transition hover:bg-white hover:shadow-md sm:px-3.5 sm:text-xs md:gap-1.5 xl:inline-flex"
+          className="hidden items-center gap-1 rounded-full border border-white/12 bg-white/8 px-2.5 py-2 text-[10px] font-semibold text-[#eef1ff] shadow-sm backdrop-blur-xl transition hover:bg-white/15 hover:shadow-md sm:inline-flex sm:px-3.5 sm:text-xs md:gap-1.5"
         >
           <ChevronLeft className="h-3 w-3" /> Company
         </a>
@@ -124,7 +124,7 @@ function SoundPill() {
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-bold shadow-sm backdrop-blur-xl transition-all",
         on
-          ? "border-transparent bg-hq-text text-white"
+          ? "border-transparent bg-[#f5b45e] text-[#20160a]"
           : "border-hq-line bg-hq-panel text-hq-muted hover:text-hq-text",
       )}
     >
@@ -170,11 +170,11 @@ function StatsBar() {
   const meeting = isMeeting(hour);
 
   return (
-    <div className="pointer-events-auto absolute right-2 top-[4.5rem] grid grid-cols-2 gap-1.5 sm:right-3 sm:top-[4.6rem] sm:grid-cols-3 md:top-14 lg:top-[4.4rem]">
+    <div className="pointer-events-auto absolute right-2 top-[4.5rem] hidden grid-cols-2 gap-1.5 min-[640px]:grid sm:right-3 sm:top-[4.6rem] sm:grid-cols-3 md:top-14 lg:top-[4.4rem]">
       <StatTile label="JAM WIB" value={wib} />
       <StatTile label="TOKEN KELUAR" value={formatShort(tokensOut)} />
       <StatTile label="TOKEN DIPROSES" value={running ? formatShort(running * 1400) : "0"} accent={running ? "#0ea5e9" : undefined} />
-      <StatTile label="RAPAT BERIKUTNYA" value={meeting ? "SEKARANG" : "13.00"} accent={meeting ? "#047857" : undefined} />
+      <StatTile label="RAPAT BERIKUTNYA" value={meeting ? "SEKARANG" : "13.00"} accent={meeting ? "#34d399" : undefined} />
       <StatTile label="AKSI" value={formatShort(useHqStore((s) => s.actions))} />
       <StatTile label="SESI AKTIF" value={`${AGENTS.filter(() => isOnShift(hour)).length}/6`} />
     </div>
@@ -227,7 +227,7 @@ function ViewControls() {
               onClick={() => setMode(m.id)}
               className={cn(
                 "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10.5px] font-bold transition-colors",
-                mode === m.id ? "bg-hq-text text-white" : "text-hq-muted hover:text-hq-text",
+                mode === m.id ? "bg-[#f5b45e] text-[#20160a]" : "text-hq-muted hover:text-hq-text",
               )}
             >
               {m.icon}
@@ -239,7 +239,7 @@ function ViewControls() {
           onClick={() => setLabels(!labels)}
           className={cn(
             "rounded-full border px-3 py-1.5 text-[10.5px] font-bold shadow-sm backdrop-blur-xl transition-colors",
-            labels ? "border-transparent bg-hq-text text-white" : "border-hq-line bg-hq-panel text-hq-muted hover:text-hq-text",
+            labels ? "border-transparent bg-[#f5b45e] text-[#20160a]" : "border-hq-line bg-hq-panel text-hq-muted hover:text-hq-text",
           )}
         >
           Label
@@ -248,7 +248,7 @@ function ViewControls() {
           onClick={() => setAutoOrbit(!autoOrbit)}
           className={cn(
             "rounded-full border px-3 py-1.5 text-[10.5px] font-bold shadow-sm backdrop-blur-xl transition-colors",
-            autoOrbit ? "border-transparent bg-hq-text text-white" : "border-hq-line bg-hq-panel text-hq-muted hover:text-hq-text",
+            autoOrbit ? "border-transparent bg-[#f5b45e] text-[#20160a]" : "border-hq-line bg-hq-panel text-hq-muted hover:text-hq-text",
           )}
         >
           Auto-sway
@@ -266,8 +266,8 @@ function ViewControls() {
           {full ? <Minimize className="h-3 w-3" /> : <Maximize className="h-3 w-3" />} Layar penuh
         </button>
       </div>
-      <p className="pointer-events-none absolute bottom-[7rem] left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-full bg-[#232746]/20 px-3 py-1 text-[9.5px] font-semibold text-[#232746]/70 shadow-sm backdrop-blur-md lg:block">
-        seret • putar 360° • scroll/pinch • zoom • klik karakter • F layar penuh
+      <p className="pointer-events-none absolute bottom-[7rem] left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-full bg-white/10 px-3 py-1 text-[9.5px] font-semibold text-[#eef1ff]/70 shadow-sm backdrop-blur-md lg:block">
+        seret • geser sudut • scroll/pinch zoom • klik robot • F layar penuh
       </p>
     </>
   );
@@ -288,14 +288,14 @@ function ActivityFeed() {
   const shown = feed.filter((e) => !filter || e.color === filter).slice(0, 9);
 
   return (
-    <div className="pointer-events-auto absolute left-2 top-[10rem] hidden w-[220px] rounded-2xl border border-[#232746]/8 bg-[#ffffff]/90 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl lg:left-3 lg:top-[12.5rem] lg:block lg:w-[248px]">
-      <p className="text-[10px] font-bold tracking-[0.14em] text-[#7a81a6]">AKTIVITAS LANGSUNG</p>
+    <div className="pointer-events-auto absolute left-2 top-[10rem] hidden w-[220px] rounded-2xl border border-white/10 bg-[#11162a]/88 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl lg:left-3 lg:top-[12.5rem] lg:block lg:w-[248px]">
+      <p className="text-[10px] font-bold tracking-[0.14em] text-[#98a1c4]">AKTIVITAS LANGSUNG</p>
       <div className="mt-1.5 flex flex-wrap gap-1">
         <button
           onClick={() => setFilter(null)}
           className={cn(
             "rounded-full border px-2 py-0.5 text-[9px] font-bold transition-colors",
-            filter === null ? "border-transparent bg-hq-text text-white" : "border-hq-line text-hq-muted hover:text-hq-text",
+            filter === null ? "border-transparent bg-[#f5b45e] text-[#20160a]" : "border-hq-line text-hq-muted hover:text-hq-text",
           )}
         >
           Semua
@@ -348,12 +348,12 @@ function ClockPanel() {
   const shiftP = Math.min(1, Math.max(0, (hour - 9) / 8));
 
   return (
-    <div className="pointer-events-auto absolute right-2 top-[20rem] hidden w-[220px] rounded-2xl border border-[#232746]/8 bg-[#ffffff]/90 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl md:right-3 md:block md:w-[236px] lg:top-[21.6rem]">
+    <div className="pointer-events-auto absolute right-2 top-[20rem] hidden w-[220px] rounded-2xl border border-white/10 bg-[#11162a]/88 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl md:right-3 md:block md:w-[236px] lg:top-[21.6rem]">
       <div className="flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.14em] text-hq-muted">
           <Clock3 className="h-3.5 w-3.5" /> JAM SIM
         </span>
-        <Chip color={on ? "#047857" : "#6d28d9"}>{on ? "ON SHIFT" : "OFF SHIFT"}</Chip>
+        <Chip color={on ? "#34d399" : "#a78bfa"}>{on ? "ON SHIFT" : "OFF SHIFT"}</Chip>
       </div>
       <div className="mt-0.5 flex items-baseline gap-2">
         <span className="font-mono text-[26px] font-extrabold leading-none tracking-tight text-hq-text">
@@ -375,7 +375,7 @@ function ClockPanel() {
       <div className="mt-2 flex items-center gap-1.5">
         <button
           onClick={togglePlay}
-          className="flex h-7 w-7 items-center justify-center rounded-lg bg-hq-text text-white transition-transform hover:scale-105"
+          className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#f5b45e] text-[#20160a] transition-transform hover:scale-105"
           aria-label={playing ? "Pause" : "Play"}
         >
           {playing ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
@@ -386,7 +386,7 @@ function ClockPanel() {
             onClick={() => setSpeed(s)}
             className={cn(
               "h-7 rounded-lg px-2 text-[10.5px] font-bold transition-colors",
-              speed === s ? "bg-hq-text text-white" : "bg-hq-line/60 text-hq-muted hover:text-hq-text",
+              speed === s ? "bg-[#f5b45e] text-[#20160a]" : "bg-hq-line/60 text-hq-muted hover:text-hq-text",
             )}
           >
             {s}×
@@ -400,7 +400,7 @@ function ClockPanel() {
 
 /* ---------------------------------- approval inbox ---------------------------------- */
 
-const AMBER = "#b45309";
+const AMBER = "#fbbf24";
 
 function ApprovalInbox() {
   const approvals = useHqStore((s) => s.approvals);
@@ -445,13 +445,13 @@ function ApprovalInbox() {
   };
 
   return (
-    <div className="pointer-events-auto absolute right-2 top-[43rem] hidden w-[220px] rounded-2xl border border-[#f0d9a0] bg-[#fff8ecf2] p-3 shadow-[0_18px_40px_-20px_rgba(180,83,9,0.5)] backdrop-blur-2xl md:right-3 md:block md:w-[236px] lg:top-[42rem]">
+    <div className="pointer-events-auto absolute bottom-[8.5rem] right-2 hidden max-h-[46vh] w-[220px] overflow-y-auto rounded-2xl border border-[#f0d9a0]/40 bg-[#241b0e]/94 p-3 shadow-[0_18px_40px_-20px_rgba(180,83,9,0.5)] backdrop-blur-2xl md:right-3 md:block md:w-[236px]">
       <div className="flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.14em]" style={{ color: AMBER }}>
           <Inbox className="h-3.5 w-3.5" /> APPROVAL INBOX
         </span>
         <span
-          className="flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-extrabold text-white"
+          className="flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-extrabold text-[#20160a]"
           style={{ backgroundColor: AMBER }}
         >
           {approvals.length}
@@ -462,7 +462,7 @@ function ApprovalInbox() {
           const agent = AGENTS.find((x) => x.id === a.agentId);
           const isBusy = busy === a.id;
           return (
-            <div key={a.id} className="rounded-xl border border-[#f0d9a0] bg-white/85 p-2.5">
+            <div key={a.id} className="rounded-xl border border-[#f0d9a0] bg-white/8 p-2.5">
               <div className="flex items-center gap-2">
                 <span
                   className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold text-white"
@@ -493,7 +493,7 @@ function ApprovalInbox() {
           );
         })}
       </div>
-      {error && <p className="mt-1.5 text-[10px] font-semibold text-[#e11d48]">{error}</p>}
+      {error && <p className="mt-1.5 text-[10px] font-semibold text-[#fb7185]">{error}</p>}
       <p className="mt-1 text-[9px] font-medium leading-snug text-hq-muted">
         Dibuka pipeline (n8n) via Floor API — keputusan langsung melanjutkan workflow.
       </p>
@@ -519,7 +519,7 @@ function BacklogPanel() {
   const agentOf = (id: string) => AGENTS.find((a) => a.id === id);
 
   return (
-    <div className="pointer-events-auto absolute right-2 top-[32rem] hidden w-[220px] rounded-2xl border border-[#232746]/8 bg-[#ffffff]/90 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl md:right-3 md:block md:w-[236px] lg:top-[30rem]">
+    <div className="pointer-events-auto absolute right-2 top-[32rem] hidden w-[220px] rounded-2xl border border-white/10 bg-[#11162a]/88 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl md:right-3 md:block md:w-[236px] lg:top-[30rem]">
       <div className="flex items-center justify-between">
         <p className="text-[10px] font-bold tracking-[0.14em] text-hq-muted">BACKLOG</p>
         <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-hq-line/70 px-1.5 text-[10px] font-extrabold text-hq-text">
@@ -527,7 +527,7 @@ function BacklogPanel() {
         </span>
       </div>
 
-      <p className="mt-2 text-[9px] font-bold tracking-[0.12em] text-[#b45309]">Deadline dekat · {deadline.length}</p>
+      <p className="mt-2 text-[9px] font-bold tracking-[0.12em] text-[#fbbf24]">Deadline dekat · {deadline.length}</p>
       <div className="mt-1 space-y-1">
         {deadline.map((j) => {
           const a = agentOf(j.agentId);
@@ -582,14 +582,14 @@ function AgentCards() {
         const waiting = approvals.some((ap) => ap.agentId === a.id);
         const failed = job?.status === "failed";
         const status = waiting
-          ? { label: "WAITING OK", color: "#b45309" }
+          ? { label: "WAITING OK", color: "#fbbf24" }
           : failed
             ? { label: "ERROR", color: "#e11d48" }
             : meeting
               ? { label: "RAPAT", color: "#0ea5e9" }
               : on
-                ? { label: "KERJA", color: "#047857" }
-                : { label: "REHAT", color: "#6d28d9" };
+                ? { label: "KERJA", color: "#34d399" }
+                : { label: "REHAT", color: "#a78bfa" };
         const task = failed
           ? `${job?.title ?? "Job gagal"} — pengisian ulang`
           : meeting
@@ -606,7 +606,7 @@ function AgentCards() {
           <button
             key={a.id}
             onClick={() => select({ kind: "agent", id: a.id })}
-            className="min-w-[140px] shrink-0 flex-1 rounded-2xl border border-[#232746]/8 bg-[#ffffff]/90 p-2 text-left shadow-[0_10px_24px_-12px_rgba(35,39,70,0.4)] backdrop-blur-xl transition hover:scale-[1.02] hover:shadow-[0_14px_30px_-12px_rgba(35,39,70,0.5)] sm:min-w-[168px] sm:p-2.5"
+            className="min-w-[140px] shrink-0 flex-1 rounded-2xl border border-white/10 bg-[#11162a]/88 p-2 text-left shadow-[0_10px_24px_-12px_rgba(35,39,70,0.4)] backdrop-blur-xl transition hover:scale-[1.02] hover:shadow-[0_14px_30px_-12px_rgba(35,39,70,0.5)] sm:min-w-[168px] sm:p-2.5"
           >
             <div className="flex items-center gap-1.5">
               <span
@@ -615,7 +615,7 @@ function AgentCards() {
               >
                 {a.name[0]}
               </span>
-              <span className="min-w-0 flex-1 truncate text-[10px] font-extrabold text-[#232746] sm:text-[11.5px]">{a.name}</span>
+              <span className="min-w-0 flex-1 truncate text-[10px] font-extrabold text-[#eef1ff] sm:text-[11.5px]">{a.name}</span>
               <span
                 className="shrink-0 rounded-full px-1.5 py-0.5 text-[7px] font-bold tracking-[0.08em] sm:text-[8px]"
                 style={{ backgroundColor: `${status.color}1c`, color: status.color }}
@@ -623,14 +623,14 @@ function AgentCards() {
                 {status.label}
               </span>
             </div>
-            <p className="mt-0.5 truncate text-[8px] font-medium leading-tight text-[#7a81a6] sm:mt-1 sm:text-[9.5px]">
+            <p className="mt-0.5 truncate text-[8px] font-medium leading-tight text-[#98a1c4] sm:mt-1 sm:text-[9.5px]">
               {a.role} · {a.name === "AKIRA" ? "Tim inti" : "Klip"}
             </p>
-            <p className="mt-0.5 truncate text-[9px] font-bold leading-snug text-[#232746] sm:mt-0.5 sm:text-[10.5px]">
+            <p className="mt-0.5 truncate text-[9px] font-bold leading-snug text-[#eef1ff] sm:mt-0.5 sm:text-[10.5px]">
               {status.label === "KERJA" ? "▶ " : "▸ "}
               {task}
             </p>
-            <p className="mt-0.5 font-mono text-[7px] font-semibold text-[#7a81a6] sm:mt-1 sm:text-[8.5px]">
+            <p className="mt-0.5 font-mono text-[7px] font-semibold text-[#98a1c4] sm:mt-1 sm:text-[8.5px]">
               {agentActions} aksi · {formatShort(tokens)} tok · {formatShort(ctx)} ctx
             </p>
           </button>
@@ -667,7 +667,7 @@ function DetailCard() {
   const on = isOnShift(hour);
 
   return (
-    <div className="pointer-events-auto absolute bottom-[7.5rem] left-2 w-[200px] rounded-2xl border border-[#232746]/8 bg-[#ffffff]/90 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.45)] backdrop-blur-2xl sm:left-3 sm:w-[228px] sm:p-3.5 lg:bottom-[9rem] lg:w-[248px]">
+    <div className="pointer-events-auto absolute bottom-[7.5rem] left-2 w-[200px] rounded-2xl border border-white/10 bg-[#11162a]/88 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.45)] backdrop-blur-2xl sm:left-3 sm:w-[228px] sm:p-3.5 lg:bottom-[9rem] lg:w-[248px]">
       <div className="flex items-start justify-between">
         {agent ? (
           <div className="flex items-center gap-2.5">
@@ -727,7 +727,7 @@ function DetailCard() {
                   </Chip>
                 </div>
                 <p className="mt-1 text-[11px] font-bold leading-snug text-hq-text">{taskTitle}</p>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white">
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/12">
                   <div
                     className="h-full rounded-full transition-[width] duration-700"
                     style={{ width: `${Math.round(taskP * 100)}%`, backgroundColor: failed ? "#e11d48" : agent.color }}
@@ -741,7 +741,7 @@ function DetailCard() {
                 </div>
                 <div className="rounded-xl bg-hq-line/40 px-2.5 py-2">
                   <p className="text-[8.5px] font-bold tracking-[0.12em] text-hq-muted">STASIUN</p>
-                  <p className="text-[12px] font-extrabold leading-tight text-hq-text">Studio desk</p>
+                  <p className="text-[12px] font-extrabold leading-tight text-hq-text">{agent.station}</p>
                 </div>
               </div>
               <p className="mt-2 flex items-center gap-1.5 text-[10.5px] font-semibold text-hq-muted">
@@ -764,14 +764,14 @@ function DetailCard() {
             </div>
           </div>
           <p className="mt-2.5 flex items-center gap-1.5 text-[10.5px] font-semibold text-hq-muted">
-            <MapPin className="h-3.5 w-3.5" /> Rak CREW GARAGE · dinding selatan
+            <MapPin className="h-3.5 w-3.5" /> Credenza CREW GARAGE · dinding jendela
           </p>
         </>
       )}
 
       <button
         onClick={requestFocus}
-        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-hq-text py-2 text-[11px] font-bold text-white transition-transform hover:scale-[1.02]"
+        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#f5b45e] py-2 text-[11px] font-bold text-[#20160a] transition-transform hover:scale-[1.02]"
       >
         <Crosshair className="h-3.5 w-3.5" /> Fokus kamera
       </button>
