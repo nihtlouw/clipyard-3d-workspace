@@ -1,5 +1,17 @@
 import { create } from "zustand";
-import { STATS } from "@/lib/hq-data";
+import { STATS, type AgentId } from "@/lib/hq-data";
+import {
+  loadConnector,
+  saveConnector,
+  type ConnectorConfig,
+} from "@/lib/hq-connector";
+import { loadJSON, saveJSON } from "@/lib/hq-persist";
+import {
+  defaultProfiles,
+  loadProfiles,
+  saveProfiles,
+  type AgentProfile,
+} from "@/lib/hq-profiles";
 import {
   dayFactors,
   isOnShift,
@@ -39,6 +51,33 @@ export interface FeedEvent {
   text: string;
 }
 
+/** A finished piece of work, archived so history survives the live snapshot. */
+export interface WorkOutput {
+  jobId: string;
+  agentId: AgentId;
+  title: string;
+  finishedAt: number;
+}
+
+const OUTPUTS_KEY = "clipyard.outputs.v1";
+const MAX_OUTPUTS = 60;
+
+function loadOutputs(): WorkOutput[] {
+  const raw = loadJSON<unknown>(OUTPUTS_KEY, []);
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (o): o is WorkOutput =>
+        typeof o === "object" &&
+        o !== null &&
+        typeof (o as WorkOutput).jobId === "string" &&
+        typeof (o as WorkOutput).agentId === "string" &&
+        typeof (o as WorkOutput).title === "string" &&
+        typeof (o as WorkOutput).finishedAt === "number",
+    )
+    .slice(0, MAX_OUTPUTS);
+}
+
 interface HqState {
   /** simulated clock, hours 0–24 */
   hour: number;
@@ -71,6 +110,17 @@ interface HqState {
   floorSource: "sim" | "live";
   /** epoch ms of the last accepted snapshot */
   floorUpdatedAt: number;
+  /** configurable agent identities (Fase 6, persisted to localStorage) */
+  profiles: Record<AgentId, AgentProfile>;
+  /** real-pipeline connector settings (Fase 6, persisted to localStorage) */
+  connector: ConnectorConfig;
+  /** archived finished jobs, newest first (Fase 6, persisted) */
+  outputs: WorkOutput[];
+  updateProfile: (id: AgentId, patch: Partial<AgentProfile>) => void;
+  resetProfiles: () => void;
+  setConnector: (cfg: ConnectorConfig) => void;
+  clearOutputs: () => void;
+  clearFeed: () => void;
   applyFloorSnapshot: (s: FloorSnapshot) => void;
   /** local bookkeeping after posting a decision to the Floor API */
   resolveApproval: (id: string, decision: ApprovalDecision, label?: string) => void;
@@ -113,11 +163,34 @@ export const useHqStore = create<HqState>((set, get) => ({
   resolvedApprovals: {},
   floorSource: "sim",
   floorUpdatedAt: 0,
+  profiles: loadProfiles(),
+  connector: loadConnector(),
+  outputs: loadOutputs(),
+  updateProfile: (id, patch) => {
+    const next = { ...get().profiles, [id]: { ...get().profiles[id], ...patch, id } };
+    saveProfiles(next);
+    set({ profiles: next });
+  },
+  resetProfiles: () => {
+    const fresh = defaultProfiles();
+    saveProfiles(fresh);
+    set({ profiles: fresh });
+  },
+  setConnector: (cfg) => {
+    saveConnector(cfg);
+    set({ connector: cfg });
+  },
+  clearOutputs: () => {
+    saveJSON(OUTPUTS_KEY, []);
+    set({ outputs: [] });
+  },
+  clearFeed: () => set({ feed: [] }),
   applyFloorSnapshot: (s) => {
     const st = get();
     const resolved = st.resolvedApprovals;
-    // diff jobs → activity feed events
+    // diff jobs → activity feed events + finished-work archive
     const prev = new Map(st.jobs.map((j) => [j.jobId, j] as const));
+    const finished: WorkOutput[] = [];
     for (const j of s.jobs) {
       const before = prev.get(j.jobId);
       if (!before) {
@@ -126,7 +199,10 @@ export const useHqStore = create<HqState>((set, get) => ({
         }
       } else if (before.status !== j.status) {
         if (j.status === "running") st.pushEvent(`${j.title} — mulai`, { color: agentColor(j.agentId), kind: "job" });
-        if (j.status === "done") st.pushEvent(`${j.title} ✔ selesai`, { color: agentColor(j.agentId), kind: "job" });
+        if (j.status === "done") {
+          st.pushEvent(`${j.title} ✔ selesai`, { color: agentColor(j.agentId), kind: "job" });
+          finished.push({ jobId: j.jobId, agentId: j.agentId, title: j.title, finishedAt: s.ts });
+        }
         if (j.status === "failed") st.pushEvent(`${j.title} ✖ gagal — perlu cek`, { color: agentColor(j.agentId), kind: "job" });
       }
     }
@@ -137,12 +213,17 @@ export const useHqStore = create<HqState>((set, get) => ({
         st.pushEvent(`Minta OK: ${a.title}`, { color: agentColor(a.agentId), kind: "ok" });
       }
     }
+    const outputs = finished.length
+      ? [...finished, ...st.outputs.filter((o) => !finished.some((f) => f.jobId === o.jobId))].slice(0, MAX_OUTPUTS)
+      : st.outputs;
+    if (finished.length) saveJSON(OUTPUTS_KEY, outputs);
     set({
       jobs: s.jobs,
       stats: s.stats,
       floorSource: s.source,
       floorUpdatedAt: s.ts,
       approvals: (s.approvals ?? []).filter((a) => !resolved[a.id]),
+      outputs,
     });
   },
   resolveApproval: (id, decision, label) => {
@@ -164,7 +245,7 @@ export const useHqStore = create<HqState>((set, get) => ({
         color: opts?.color,
         text,
       };
-      return { feed: [ev, ...state.feed].slice(0, 40), actions: state.actions + 1 };
+      return { feed: [ev, ...state.feed].slice(0, 300), actions: state.actions + 1 };
     }),
   setHour: (h) => set({ hour: ((h % 24) + 24) % 24 }),
   togglePlay: () => set({ playing: !get().playing }),
@@ -184,16 +265,9 @@ export const useHqStore = create<HqState>((set, get) => ({
   },
 }));
 
-const AGENT_COLORS: Record<string, string> = {
-  akira: "#22d3ee",
-  nova: "#a78bfa",
-  hook: "#fbbf24",
-  lexa: "#34d399",
-  pixel: "#f472b6",
-  bolt: "#fb923c",
-};
 function agentColor(id: string) {
-  return AGENT_COLORS[id] ?? "#7a81a6";
+  // follows the user's profile color so the feed/3D accents stay in sync
+  return useHqStore.getState().profiles[id as AgentId]?.color ?? "#7a81a6";
 }
 
 /* ---------------------------------- derived helpers ---------------------------------- */

@@ -51,6 +51,12 @@ function LandingPage() {
                 >
                   Masuk Studio <ArrowRight className="h-4 w-4" />
                 </Link>
+                <Link
+                  to="/aktivitas"
+                  className="inline-flex items-center gap-2 rounded-2xl border border-[#232746]/10 bg-white/50 px-6 py-3.5 text-sm font-extrabold text-[#232746] shadow-sm backdrop-blur-md transition hover:border-[#232746]/20 hover:bg-white hover:shadow-md"
+                >
+                  Buka Dasbor Kelola
+                </Link>
                 <a
                   href="#fitur"
                   className="inline-flex items-center gap-2 rounded-2xl border border-[#232746]/10 bg-white/50 px-6 py-3.5 text-sm font-extrabold text-[#232746] shadow-sm backdrop-blur-md transition hover:border-[#232746]/20 hover:bg-white hover:shadow-md"
@@ -95,8 +101,8 @@ function LandingPage() {
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           <FeatureCard
             icon={<Zap className="h-5 w-5 text-[#22d3ee]" />}
-            title="6 Robot Agen"
-            desc="Robot putih bervisor menyala dengan status hidup: kerja, rapat, rehat, atau error — semua sinkron dengan jam sim."
+            title="Panel Kerja Agen"
+            desc="Klik robotnya: lihat tugas berjalan, hasil yang selesai, beri tugas baru, dan konfigurasi nama, peran & tanggung jawabnya — langsung tercermin di robot."
           />
           <FeatureCard
             icon={<Clock className="h-5 w-5 text-[#a78bfa]" />}
@@ -105,13 +111,13 @@ function LandingPage() {
           />
           <FeatureCard
             icon={<ShieldCheck className="h-5 w-5 text-[#34d399]" />}
-            title="Pipeline Live"
-            desc="Kontrak FloorSnapshot: data dari simulator atau endpoint n8n langsung menggerakkan whiteboard."
+            title="Konektor Pipeline Asli"
+            desc="Panel UI untuk menyambungkan Studio ke Floor API + n8n: atur URL, token & polling, tes koneksi, kirim job uji — tanpa menyentuh .env."
           />
           <FeatureCard
             icon={<BarChart3 className="h-5 w-5 text-[#fbbf24]" />}
-            title="HUD Dashboard"
-            desc="Panel aktivitas langsung, backlog, inbox persetujuan, kartu agen, dan kontrol tampilan."
+            title="Dasbor Kelola"
+            desc="Halaman aktivitas, statistik, laporan Markdown siap unduh, manajer draft dokumen, dan pengelolaan agen — semua membaca lantai live yang sama."
           />
           <FeatureCard
             icon={<Users className="h-5 w-5 text-[#f472b6]" />}

@@ -6,7 +6,7 @@
  * (13:00 standup) → glass rest room (off shift). Routes go through the real
  * glass doors via a small waypoint queue.
  */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { AGENTS, MEETING_SEATS, ROOM, type AgentInfo } from "@/lib/hq-data";
@@ -66,8 +66,18 @@ function Robot({ info, index }: { info: AgentInfo; index: number }) {
   const select = useHqStore((s) => s.select);
   const labels = useHqStore((s) => s.labels);
   const selected = useHqStore((s) => s.selection?.kind === "agent" && s.selection.id === info.id);
+  // Fase 6: the robot's visible identity follows the editable profile
+  const profile = useHqStore((s) => s.profiles[info.id]);
 
-  const nameplate = useMemo(() => createNameplate(info.name, info.color), [info]);
+  const nameplate = useMemo(
+    () => createNameplate(info.name, info.color),
+    // created once per robot; identity updates go through setIdentity below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [info.id],
+  );
+  useEffect(() => {
+    if (profile) nameplate.setIdentity(profile.name, profile.color);
+  }, [nameplate, profile]);
   const phase = useMemo(() => index * 1.73, [index]);
   const speed = useMemo(() => 1.5 + ((index * 53) % 9) / 14, [index]); // per-agent pace → the pack spreads out
   const route = useRef<Array<[number, number]>>([]);
@@ -172,7 +182,7 @@ function Robot({ info, index }: { info: AgentInfo; index: number }) {
 
     if (ringMat.current) {
       ringMat.current.opacity = (selected ? 0.95 : hover ? 0.55 : 0.22) * (on ? 1 : 0.6);
-      const c = failed ? "#fb3b5c" : waitingOk ? "#f59e0b" : info.color;
+      const c = failed ? "#fb3b5c" : waitingOk ? "#f59e0b" : (profile?.color ?? info.color);
       if (ringMat.current.color.getHexString() !== c.slice(1)) ringMat.current.color.set(c);
     }
 
@@ -188,7 +198,7 @@ function Robot({ info, index }: { info: AgentInfo; index: number }) {
     }
   });
 
-  const accent = info.color;
+  const accent = profile?.color ?? info.color;
 
   return (
     <group

@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties } from "react";
+import { Link } from "@tanstack/react-router";
 import {
   Bot,
   Car,
   Check,
+  ChevronDown,
   ChevronLeft,
   Clock3,
   Crosshair,
   Eye,
   EyeOff,
   Inbox,
+  LayoutGrid,
   MapPin,
   Maximize,
   Minimize,
@@ -22,6 +25,9 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import { AgentWorkPanel } from "@/components/dash/agent-panel";
+import { DASH_NAV } from "@/components/dash/shell";
+import { decideApproval } from "@/lib/hq-actions";
 import { AGENTS, COMPANY, IDEAS, VEHICLES, type VehicleInfo } from "@/lib/hq-data";
 import { currentJobFor } from "@/lib/hq-jobs";
 import { formatHour, formatShort, isMeeting, isOnShift, timeAgo, useHqStore, type ViewMode } from "@/lib/hq-store";
@@ -111,9 +117,70 @@ function FloorBadge() {
     return () => window.clearInterval(id);
   }, [source]);
 
-  if (source !== "live") return <Chip color="#a78bfa">SIM</Chip>;
+  if (source !== "live")
+    return (
+      <Link to="/konektor" title="Buka panel konektor pipeline">
+        <Chip color="#a78bfa">SIM</Chip>
+      </Link>
+    );
   const stale = updatedAt > 0 && Date.now() - updatedAt > 15_000;
-  return <Chip color={stale ? "#fbbf24" : "#34d399"}>{stale ? "LIVE·STALE" : "LIVE"}</Chip>;
+  return (
+    <Link to="/konektor" title="Buka panel konektor pipeline">
+      <Chip color={stale ? "#fbbf24" : "#34d399"}>{stale ? "LIVE·STALE" : "LIVE"}</Chip>
+    </Link>
+  );
+}
+
+/** "Kelola" dropdown (Fase 6): the management dashboard pages. */
+function DashMenu() {
+  const [open, setOpen] = useState(false);
+  const pending = useHqStore((s) => s.approvals.length);
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-3 py-2 text-[11px] font-bold text-[#eef1ff] shadow-sm backdrop-blur-xl transition hover:bg-white/15 sm:px-3.5 sm:text-xs"
+      >
+        <LayoutGrid className="h-3.5 w-3.5" /> Kelola
+        {pending > 0 && (
+          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-extrabold text-[#20160a]">
+            {pending}
+          </span>
+        )}
+        <ChevronDown className={cn("h-3 w-3 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 z-20 mt-2 w-52 overflow-hidden rounded-2xl border border-white/12 bg-[#141a30]/97 p-1.5 shadow-[0_24px_50px_-20px_rgba(0,0,0,0.7)] backdrop-blur-2xl">
+            {DASH_NAV.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-[12px] font-bold text-[#eef1ff] transition hover:bg-white/10"
+                >
+                  <Icon className="h-4 w-4 text-sky-300" />
+                  {item.label}
+                  {item.to === "/aktivitas" && pending > 0 && (
+                    <span className="ml-auto rounded-full bg-amber-400/20 px-1.5 py-px text-[9.5px] font-extrabold text-amber-300">
+                      {pending} OK?
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+            <div className="border-t border-white/8 px-3 py-2 text-[10px] leading-snug text-[#98a1c4]">
+              Dasbor manajemen: aktivitas, statistik, laporan, dokumen, agen & konektor pipeline.
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 /* ---------------------------------- top bar + stats ---------------------------------- */
@@ -135,6 +202,7 @@ function TopBar() {
       </div>
       <div className="pointer-events-auto flex items-center gap-2">
         <SoundPill />
+        <DashMenu />
         <a
           href="/"
           className="hidden items-center gap-1 rounded-full border border-white/12 bg-white/8 px-2.5 py-2 text-[10px] font-semibold text-[#eef1ff] shadow-sm backdrop-blur-xl transition hover:bg-white/15 hover:shadow-md sm:inline-flex sm:px-3.5 sm:text-xs md:gap-1.5"
@@ -443,7 +511,7 @@ const AMBER = "#fbbf24";
 
 function ApprovalInbox() {
   const approvals = useHqStore((s) => s.approvals);
-  const resolve = useHqStore((s) => s.resolveApproval);
+  const profiles = useHqStore((s) => s.profiles);
   const select = useHqStore((s) => s.select);
   const requestFocus = useHqStore((s) => s.requestFocus);
   const [busy, setBusy] = useState<string | null>(null);
@@ -454,33 +522,15 @@ function ApprovalInbox() {
   const decide = async (a: (typeof approvals)[number], decision: "approved" | "rejected") => {
     setBusy(a.id);
     setError(null);
-    const finish = () => {
-      resolve(a.id, decision, a.title);
+    const r = await decideApproval(a, decision);
+    if (r.ok) {
+      // fly the camera to the robot whose work was just decided on
       select({ kind: "agent", id: a.agentId });
       requestFocus();
-    };
-    if (useHqStore.getState().floorSource === "sim") {
-      finish();
-      setBusy(null);
-      return;
+    } else {
+      setError(r.message ?? "gagal mengirim keputusan");
     }
-    try {
-      const res = await fetch(`/api/approvals/${encodeURIComponent(a.id)}/decision`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision }),
-      });
-      if (res.status === 404) {
-        finish();
-        return;
-      }
-      if (!res.ok) throw new Error(`decision failed (${res.status})`);
-      finish();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "gagal mengirim keputusan");
-    } finally {
-      setBusy(null);
-    }
+    setBusy(null);
   };
 
   return (
@@ -498,7 +548,7 @@ function ApprovalInbox() {
       </div>
       <div className="mt-2 space-y-2">
         {approvals.map((a) => {
-          const agent = AGENTS.find((x) => x.id === a.agentId);
+          const agent = profiles[a.agentId];
           const isBusy = busy === a.id;
           return (
             <div key={a.id} className="rounded-xl border border-[#f0d9a0] bg-white/8 p-2.5">
@@ -545,6 +595,7 @@ function ApprovalInbox() {
 function BacklogPanel() {
   const jobs = useHqStore((s) => s.jobs);
   const approvals = useHqStore((s) => s.approvals);
+  const profiles = useHqStore((s) => s.profiles);
 
   const deadline = useMemo(
     () =>
@@ -555,7 +606,7 @@ function BacklogPanel() {
     [jobs],
   );
   const count = deadline.length + approvals.length + IDEAS.length;
-  const agentOf = (id: string) => AGENTS.find((a) => a.id === id);
+  const agentOf = (id: string) => profiles[id as keyof typeof profiles];
 
   return (
     <div className="pointer-events-auto absolute right-2 top-[32rem] hidden w-[220px] rounded-2xl border border-white/10 bg-[#11162a]/88 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl md:right-3 md:block md:w-[236px] lg:top-[30rem]">
@@ -609,6 +660,7 @@ function AgentCards() {
   const jobs = useHqStore((s) => s.jobs);
   const approvals = useHqStore((s) => s.approvals);
   const feed = useHqStore((s) => s.feed);
+  const profiles = useHqStore((s) => s.profiles);
   const hour = useHqStore((s) => s.hour);
   const select = useHqStore((s) => s.select);
   const on = isOnShift(hour);
@@ -617,6 +669,7 @@ function AgentCards() {
   return (
     <div className="pointer-events-auto absolute bottom-2 left-1/2 flex w-[calc(100%-1rem)] max-w-[1200px] -translate-x-1/2 gap-1 overflow-x-auto pb-1 sm:gap-1.5 md:bottom-3 lg:bottom-4">
       {AGENTS.map((a) => {
+        const p = profiles[a.id];
         const job = currentJobFor(a.id, jobs);
         const waiting = approvals.some((ap) => ap.agentId === a.id);
         const failed = job?.status === "failed";
@@ -638,7 +691,7 @@ function AgentCards() {
               : on
                 ? a.task
                 : "Rehat di ruang rehat";
-        const agentActions = feed.filter((e) => e.color === a.color).length;
+        const agentActions = feed.filter((e) => e.color === p.color).length;
         const tokens = a.clipsToday * 137 + Math.round((job?.progress ?? 0) * 1200);
         const ctx = 28_000 + Math.round(a.progress * 62_000);
         return (
@@ -650,11 +703,11 @@ function AgentCards() {
             <div className="flex items-center gap-1.5">
               <span
                 className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-extrabold text-white sm:h-6 sm:w-6 sm:text-[10px]"
-                style={{ backgroundColor: a.color }}
+                style={{ backgroundColor: p.color }}
               >
-                {a.name[0]}
+                {p.name[0] ?? "?"}
               </span>
-              <span className="min-w-0 flex-1 truncate text-[10px] font-extrabold text-[#eef1ff] sm:text-[11.5px]">{a.name}</span>
+              <span className="min-w-0 flex-1 truncate text-[10px] font-extrabold text-[#eef1ff] sm:text-[11.5px]">{p.name}</span>
               <span
                 className="shrink-0 rounded-full px-1.5 py-0.5 text-[7px] font-bold tracking-[0.08em] sm:text-[8px]"
                 style={{ backgroundColor: `${status.color}1c`, color: status.color }}
@@ -663,7 +716,7 @@ function AgentCards() {
               </span>
             </div>
             <p className="mt-0.5 truncate text-[8px] font-medium leading-tight text-[#98a1c4] sm:mt-1 sm:text-[9.5px]">
-              {a.role} · {a.name === "AKIRA" ? "Tim inti" : "Klip"}
+              {p.role} · {a.id === "akira" ? "Tim inti" : "Klip"}
             </p>
             <p className="mt-0.5 truncate text-[9px] font-bold leading-snug text-[#eef1ff] sm:mt-0.5 sm:text-[10.5px]">
               {status.label === "KERJA" ? "▶ " : "▸ "}
@@ -685,8 +738,7 @@ function DetailCard() {
   const selection = useHqStore((s) => s.selection);
   const select = useHqStore((s) => s.select);
   const requestFocus = useHqStore((s) => s.requestFocus);
-  const hour = useHqStore((s) => s.hour);
-  const jobs = useHqStore((s) => s.jobs);
+  const profiles = useHqStore((s) => s.profiles);
 
   useEffect(() => {
     if (!selection) return;
@@ -703,27 +755,21 @@ function DetailCard() {
   const vehicle = selection.kind === "vehicle" ? VEHICLES.find((v) => v.id === selection.id) : undefined;
   if (!agent && !vehicle) return null;
 
-  const on = isOnShift(hour);
+  // Agent → the full Fase 6 work panel (jobs, results, tasks, config).
+  if (agent) {
+    return (
+      <div className="pointer-events-auto absolute bottom-[7.5rem] left-2 max-h-[calc(100vh-11rem)] w-[min(92vw,372px)] overflow-y-auto rounded-2xl border border-white/10 bg-[#11162a]/94 p-3.5 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.45)] backdrop-blur-2xl sm:left-3 lg:bottom-[9rem]">
+        <AgentWorkPanel agentId={agent.id} onClose={() => select(null)} />
+      </div>
+    );
+  }
 
   return (
     <div className="pointer-events-auto absolute bottom-[7.5rem] left-2 w-[200px] rounded-2xl border border-white/10 bg-[#11162a]/88 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.45)] backdrop-blur-2xl sm:left-3 sm:w-[228px] sm:p-3.5 lg:bottom-[9rem] lg:w-[248px]">
       <div className="flex items-start justify-between">
-        {agent ? (
-          <div className="flex items-center gap-2.5">
-            <span
-              className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-extrabold text-white"
-              style={{ backgroundColor: agent.color }}
-            >
-              {agent.name[0]}
-            </span>
-            <div>
-              <p className="text-[13.5px] font-extrabold leading-tight text-hq-text">{agent.name}</p>
-              <p className="text-[10px] font-semibold text-hq-muted">{agent.role}</p>
-            </div>
-          </div>
-        ) : vehicle ? (
+        {vehicle &&
           (() => {
-            const owner = AGENTS.find((a) => a.id === vehicle.owner);
+            const owner = profiles[vehicle.owner];
             return (
               <div className="flex items-center gap-2.5">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: `${vehicle.color}26` }}>
@@ -737,8 +783,7 @@ function DetailCard() {
                 </div>
               </div>
             );
-          })()
-        ) : null}
+          })()}
         <button
           onClick={() => select(null)}
           className="rounded-lg p-1 text-hq-muted transition-colors hover:bg-hq-line/60 hover:text-hq-text"
@@ -747,48 +792,6 @@ function DetailCard() {
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
-
-      {agent &&
-        (() => {
-          const job = currentJobFor(agent.id, jobs);
-          const taskTitle = job?.title ?? agent.task;
-          const taskP = job && job.status !== "queued" ? job.progress : agent.progress;
-          const failed = job?.status === "failed";
-          const queued = job?.status === "queued";
-          return (
-            <>
-              <p className="mt-2.5 text-[11px] font-medium leading-snug text-hq-muted">{agent.tagline}</p>
-              <div className="mt-2.5 rounded-xl bg-hq-line/40 p-2.5">
-                <div className="flex items-center justify-between text-[9.5px] font-bold tracking-[0.1em] text-hq-muted">
-                  <span>TUGAS SAAT INI</span>
-                  <Chip color={failed ? "#e11d48" : agent.color}>
-                    {failed ? "FAILED" : queued ? "QUEUED" : on ? "LIVE" : "QUEUED"}
-                  </Chip>
-                </div>
-                <p className="mt-1 text-[11px] font-bold leading-snug text-hq-text">{taskTitle}</p>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/12">
-                  <div
-                    className="h-full rounded-full transition-[width] duration-700"
-                    style={{ width: `${Math.round(taskP * 100)}%`, backgroundColor: failed ? "#e11d48" : agent.color }}
-                  />
-                </div>
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-1.5">
-                <div className="rounded-xl bg-hq-line/40 px-2.5 py-2">
-                  <p className="text-[8.5px] font-bold tracking-[0.12em] text-hq-muted">KLIP HARI INI</p>
-                  <p className="text-[12px] font-extrabold leading-tight text-hq-text">{agent.clipsToday.toLocaleString()}</p>
-                </div>
-                <div className="rounded-xl bg-hq-line/40 px-2.5 py-2">
-                  <p className="text-[8.5px] font-bold tracking-[0.12em] text-hq-muted">STASIUN</p>
-                  <p className="text-[12px] font-extrabold leading-tight text-hq-text">{agent.station}</p>
-                </div>
-              </div>
-              <p className="mt-2 flex items-center gap-1.5 text-[10.5px] font-semibold text-hq-muted">
-                <Car className="h-3.5 w-3.5" /> {agent.vehicle} — rak CREW GARAGE
-              </p>
-            </>
-          );
-        })()}
 
       {vehicle && (
         <>

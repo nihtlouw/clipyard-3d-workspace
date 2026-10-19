@@ -251,3 +251,36 @@ layar tampil) — pill kecil "Tampilkan UI" mengembalikannya; tombol
 sofa/bantal lantai di ruang rehat diselaraskan ke furniturnya.
 Bukti: `screenshots/redesign-glass-clean*.png` (tanpa HUD, malam & siang —
 juga dipakai landing page).
+
+# Fase 6 — Panel konektor pipeline + dasbor kelola + panel kerja agen
+
+Studio kini bisa dioperasikan penuh dari UI, tanpa menyentuh konfigurasi
+berbasis berkas:
+
+- **Panel Konektor** (`/konektor`): pilih mode **SIM** (simulator bawaan) atau
+  **LIVE** (pipeline asli), isi URL endpoint FloorSnapshot, token
+  `X-Clipyard-Token`, dan interval polling → **Tes koneksi** → **Simpan &
+  terapkan** (hot-switch, tanpa reload). Ada juga pengirim *job uji* langsung
+  ke agen mana pun (`POST /api/n8n/job`, sama seperti n8n) dan panduan
+  menyambungkan n8n. `VITE_FLOOR_URL` tetap dihormati sebagai nilai awal.
+- **Dasbor kelola** (menu **Kelola** di HUD Studio 3D): **Aktivitas**
+  (`/aktivitas` — tabel job live, approval yang bisa di-OK/Tolak langsung,
+  log lengkap dengan cari + filter), **Statistik** (`/statistik` — metrik
+  pipeline, hasil per agen, arsip hasil kerja), **Laporan** (`/laporan` —
+  Markdown otomatis: salin / unduh .md / simpan ke Dokumen), **Dokumen**
+  (`/dokumen` — manajer draft caption/hook/SOP dengan status draft→review→
+  siap, tag, pencarian), **Agen** (`/agen`), dan **Konektor**. Feed lantai
+  berjalan app-wide (diinisiasi di root) sehingga semua halaman live.
+- **Panel kerja agen**: klik robot (atau kartu agen) membuka panel dengan tab
+  **Panel kerja** (job berjalan + progres, approval pending milik agen itu,
+  daftar **hasil kerja selesai**, form **beri tugas baru** yang benar-benar
+  masuk ke simulator/pipeline, tombol picu webhook agen) dan tab
+  **Konfigurasi**.
+- **Identitas agen bisa dikonfigurasi** (tab Konfigurasi / `/agen`): nama,
+  jabatan, deskripsi, warna aksen, daftar **tanggung jawab**, model/engine,
+  tools, webhook per-agen, status aktif, dan penanda auto-approve. Perubahan
+  langsung tercermin di papan nama & aksen robot 3D, kartu HUD, dan semua
+  halaman dasbor. Profil, pengaturan konektor, arsip hasil kerja, dan dokumen
+  tersimpan di `localStorage` browser (`clipyard.*.v1`).
+
+Bukti visual: `screenshots/fase6-*.png`.

@@ -584,14 +584,16 @@ export function createNameplate(name: string, color: string) {
   const ctx = ctx2d(canvas);
   const tex = toTexture(canvas);
   let lastText = "";
-  const redraw = (status: string) => {
+  let curName = name;
+  let curColor = color;
+  const redraw = (status: string, force = false) => {
     const next = status.slice(0, 26);
-    if (next === lastText) return;
+    if (!force && next === lastText) return;
     lastText = next;
     ctx.clearRect(0, 0, 360, 84);
     // dark glass pill (matches the night diorama + dark HUD)
     ctx.fillStyle = "rgba(13,17,34,0.92)";
-    const text = `${name}  ·  ${next}`;
+    const text = `${curName}  ·  ${next}`;
     ctx.font = "800 30px system-ui, sans-serif";
     const w = ctx.measureText(text).width + 74;
     roundRect(ctx, (360 - w) / 2, 12, w, 60, 30);
@@ -599,21 +601,28 @@ export function createNameplate(name: string, color: string) {
     ctx.lineWidth = 2;
     roundRectStroke(ctx, (360 - w) / 2, 12, w, 60, 30);
     // agent-color dot + initial
-    ctx.fillStyle = color;
+    ctx.fillStyle = curColor;
     ctx.beginPath();
     ctx.arc((360 - w) / 2 + 26, 42, 13, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#0d1120";
     ctx.font = "800 20px system-ui, sans-serif";
-    ctx.fillText(name[0], (360 - w) / 2 + 20, 49);
+    ctx.fillText(curName[0] ?? "?", (360 - w) / 2 + 20, 49);
     // label
     ctx.fillStyle = "#ffffff";
     ctx.font = "800 30px system-ui, sans-serif";
     ctx.fillText(text, (360 - w) / 2 + 50, 53);
     tex.needsUpdate = true;
   };
+  /** Fase 6: profile edits (name/color) repaint the plate without a rebuild. */
+  const setIdentity = (nextName: string, nextColor: string) => {
+    if (nextName === curName && nextColor === curColor) return;
+    curName = nextName;
+    curColor = nextColor;
+    redraw(lastText, true);
+  };
   redraw("");
-  return { tex, redraw };
+  return { tex, redraw, setIdentity };
 }
 
 /* ---------------------------------- signs, screens & props ---------------------------------- */

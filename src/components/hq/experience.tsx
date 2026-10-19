@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { AdaptiveDpr, PerformanceMonitor } from "@react-three/drei";
 import * as THREE from "three";
-import { attachFloorSource, createDefaultFloorSource } from "@/lib/hq-floor";
+import { initFloorFeed } from "@/lib/hq-floor";
 import { useHqStore } from "@/lib/hq-store";
 import { Agents } from "./agents";
 import { HqHud } from "./hud";
@@ -33,8 +33,11 @@ export function HqExperience() {
   // WebGL + canvas textures need the browser
   useEffect(() => setMounted(true), []);
 
-  // Floor feed: mock simulator by default, live polling when VITE_FLOOR_URL is set
-  useEffect(() => attachFloorSource(createDefaultFloorSource()), []);
+  // Floor feed is an app-wide singleton (see __root.tsx) — this is a no-op
+  // safety net. Source follows the saved connector config (SIM or LIVE).
+  useEffect(() => {
+    initFloorFeed();
+  }, []);
 
   // Dev-only handle for scripted visual QA (set sim hour, toggle mode, …)
   useEffect(() => {
