@@ -6,6 +6,7 @@ import {
   type ConnectorConfig,
 } from "@/lib/hq-connector";
 import { loadJSON, saveJSON } from "@/lib/hq-persist";
+import { saveAutoDailyReport } from "@/lib/hq-report";
 import {
   defaultProfiles,
   loadProfiles,
@@ -60,7 +61,16 @@ export interface WorkOutput {
 }
 
 const OUTPUTS_KEY = "clipyard.outputs.v1";
+const SETTINGS_KEY = "clipyard.settings.v1";
 const MAX_OUTPUTS = 60;
+
+function loadDemoShift(): boolean {
+  const raw = loadJSON<unknown>(SETTINGS_KEY, null);
+  if (typeof raw === "object" && raw !== null && "demoShift" in raw) {
+    return (raw as { demoShift?: unknown }).demoShift !== false;
+  }
+  return true; // default: office choreography on (it's the signature demo look)
+}
 
 function loadOutputs(): WorkOutput[] {
   const raw = loadJSON<unknown>(OUTPUTS_KEY, []);
@@ -87,6 +97,14 @@ interface HqState {
   autoOrbit: boolean;
   /** hide every HUD panel for a clean, reference-style diorama view (key H) */
   hudHidden: boolean;
+  /**
+   * 9–5 office choreography (Fase 7). ON = robots follow the sim clock
+   * (desks 09–17, standup 13:00, lounge after) purely as theater. OFF =
+   * robot placement mirrors each agent's real work state (see agentActivity).
+   * Jobs/data run 24/7 either way. Persisted.
+   */
+  demoShift: boolean;
+  setDemoShift: (v: boolean) => void;
   /** lighting override: follow the sim clock, force day, or force night */
   mode: ViewMode;
   selection: Selection | null;
@@ -140,6 +158,7 @@ interface HqState {
 }
 
 let feedId = 1;
+let lastAutoReportAt = 0;
 
 export const useHqStore = create<HqState>((set, get) => ({
   hour: 10.5,
@@ -148,6 +167,17 @@ export const useHqStore = create<HqState>((set, get) => ({
   labels: true,
   autoOrbit: false,
   hudHidden: false,
+  demoShift: loadDemoShift(),
+  setDemoShift: (v) => {
+    saveJSON(SETTINGS_KEY, { demoShift: v });
+    set({ demoShift: v });
+    get().pushEvent(
+      v
+        ? "Mode Demo 9–5 menyala — robot mengikuti jam kantor"
+        : "Mode Demo 9–5 mati — robot mengikuti status kerja nyata",
+      { kind: "system" },
+    );
+  },
   // default to the reference look: warm night lighting while the crew is on shift
   mode: "night",
   selection: null,
@@ -262,6 +292,17 @@ export const useHqStore = create<HqState>((set, get) => ({
     if (!playing) return;
     const next = (hour + deltaSec * speed) % 24;
     set({ hour: next });
+    // The old 13:00 "standup" now produces something useful (Fase 7): a
+    // daily report filed into Dokumen. Throttled in real time so cranking
+    // the sim speed can't spam the document manager.
+    if (hour < 13 && next >= 13 && next > hour) {
+      const now = Date.now();
+      if (now - lastAutoReportAt > 10 * 60_000) {
+        lastAutoReportAt = now;
+        saveAutoDailyReport(get());
+        get().pushEvent("Laporan harian otomatis dibuat → tersimpan di Dokumen", { kind: "system" });
+      }
+    }
   },
 }));
 

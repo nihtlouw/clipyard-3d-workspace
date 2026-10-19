@@ -28,6 +28,7 @@ import {
 import { AgentWorkPanel } from "@/components/dash/agent-panel";
 import { DASH_NAV } from "@/components/dash/shell";
 import { decideApproval } from "@/lib/hq-actions";
+import { agentActivity } from "@/lib/hq-profiles";
 import { AGENTS, COMPANY, IDEAS, VEHICLES, type VehicleInfo } from "@/lib/hq-data";
 import { currentJobFor } from "@/lib/hq-jobs";
 import { formatHour, formatShort, isMeeting, isOnShift, timeAgo, useHqStore, type ViewMode } from "@/lib/hq-store";
@@ -248,6 +249,10 @@ function StatTile({ label, value, accent }: { label: string; value: string; acce
 function StatsBar() {
   const stats = useHqStore((s) => s.stats);
   const hour = useHqStore((s) => s.hour);
+  const jobs = useHqStore((s) => s.jobs);
+  const approvals = useHqStore((s) => s.approvals);
+  const profiles = useHqStore((s) => s.profiles);
+  const demoShift = useHqStore((s) => s.demoShift);
   const [, force] = useReducer((x: number) => x + 1, 0);
 
   useEffect(() => {
@@ -264,15 +269,28 @@ function StatsBar() {
     hour12: false,
   });
   const meeting = isMeeting(hour);
+  // "Active" follows the same truth as the robots: demo = on shift,
+  // real mode = actually working/queued/waiting on the owner right now.
+  const activeCount = demoShift
+    ? AGENTS.filter(() => isOnShift(hour)).length
+    : AGENTS.filter((a) => {
+        const act = agentActivity(
+          profiles[a.id],
+          currentJobFor(a.id, jobs),
+          approvals.some((ap) => ap.agentId === a.id),
+          hour,
+        );
+        return act.kind === "kerja" || act.kind === "antre" || act.kind === "minta-ok";
+      }).length;
 
   return (
     <div className="pointer-events-auto absolute right-2 top-[4.5rem] hidden grid-cols-2 gap-1.5 min-[640px]:grid sm:right-3 sm:top-[4.6rem] sm:grid-cols-3 md:top-14 lg:top-[4.4rem]">
       <StatTile label="JAM WIB" value={wib} />
       <StatTile label="KLIP TERKIRIM" value={formatShort(stats.clipsShipped)} accent="#0ea5e9" />
       <StatTile label="TOKEN KELUAR" value={formatShort(tokensOut)} />
-      <StatTile label="RAPAT BERIKUTNYA" value={meeting ? "SEKARANG" : "13.00"} accent={meeting ? "#34d399" : undefined} />
+      <StatTile label={demoShift ? "RAPAT BERIKUTNYA" : "LAPORAN HARIAN"} value={meeting && demoShift ? "SEKARANG" : "13.00"} accent={meeting && demoShift ? "#34d399" : undefined} />
       <StatTile label="AKSI" value={formatShort(useHqStore((s) => s.actions))} />
-      <StatTile label="SESI AKTIF" value={`${AGENTS.filter(() => isOnShift(hour)).length}/6`} />
+      <StatTile label="AGEN AKTIF" value={`${activeCount}/6`} />
     </div>
   );
 }
@@ -454,6 +472,8 @@ function ClockPanel() {
   const setHour = useHqStore((s) => s.setHour);
   const togglePlay = useHqStore((s) => s.togglePlay);
   const setSpeed = useHqStore((s) => s.setSpeed);
+  const demoShift = useHqStore((s) => s.demoShift);
+  const setDemoShift = useHqStore((s) => s.setDemoShift);
   const on = isOnShift(hour);
   const shiftP = Math.min(1, Math.max(0, (hour - 9) / 8));
 
@@ -503,6 +523,33 @@ function ClockPanel() {
           </button>
         ))}
         <span className="ml-auto text-[9px] font-bold tracking-[0.1em] text-hq-muted">09:00 — 17:00</span>
+      </div>
+      <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-white/8 pt-2.5">
+        <div className="min-w-0">
+          <p className="text-[10.5px] font-bold leading-tight text-hq-text">Mode Demo 9–5</p>
+          <p className="mt-0.5 text-[9px] leading-snug text-hq-muted">
+            {demoShift
+              ? "Robot mengikuti jam kantor (demo) — pekerjaan tetap jalan 24/7"
+              : "Robot mengikuti status kerja nyata tiap agen"}
+          </p>
+        </div>
+        <button
+          onClick={() => setDemoShift(!demoShift)}
+          aria-pressed={demoShift}
+          aria-label="Mode Demo 9–5"
+          title={demoShift ? "Matikan untuk mode kerja sebenarnya" : "Nyalakan koreografi kantor 9–5"}
+          className={cn(
+            "relative h-5.5 w-10 shrink-0 rounded-full transition-colors",
+            demoShift ? "bg-[#f5b45e]" : "bg-white/15",
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-0.5 h-4.5 w-4.5 rounded-full bg-white shadow transition-all",
+              demoShift ? "left-[1.35rem]" : "left-0.5",
+            )}
+          />
+        </button>
       </div>
     </div>
   );
@@ -685,39 +732,51 @@ function BacklogPanel() {
 function AgentCards() {
   const jobs = useHqStore((s) => s.jobs);
   const approvals = useHqStore((s) => s.approvals);
-  const feed = useHqStore((s) => s.feed);
   const profiles = useHqStore((s) => s.profiles);
   const hour = useHqStore((s) => s.hour);
+  const demoShift = useHqStore((s) => s.demoShift);
   const select = useHqStore((s) => s.select);
   const on = isOnShift(hour);
   const meeting = isMeeting(hour);
 
   return (
-    <div className="pointer-events-auto absolute bottom-2 left-1/2 flex w-[calc(100%-1rem)] max-w-[1200px] -translate-x-1/2 gap-1 overflow-x-auto pb-1 sm:gap-1.5 md:bottom-3 lg:bottom-4">
+    <div className="hq-no-scrollbar pointer-events-auto absolute bottom-2 left-1/2 flex w-[calc(100%-1rem)] max-w-[1200px] -translate-x-1/2 gap-1 overflow-x-auto pb-1 sm:gap-1.5 md:bottom-3 lg:bottom-4">
       {AGENTS.map((a) => {
         const p = profiles[a.id];
         const job = currentJobFor(a.id, jobs);
         const waiting = approvals.some((ap) => ap.agentId === a.id);
         const failed = job?.status === "failed";
-        const status = waiting
-          ? { label: "WAITING OK", color: "#fbbf24" }
+        const act = agentActivity(p, job, waiting, hour);
+        // Demo mode keeps the office-theater chips; real mode shows the
+        // agent's true activity. Either way a live job is never hidden.
+        const status = demoShift
+          ? waiting
+            ? { label: "WAITING OK", color: "#fbbf24" }
+            : failed
+              ? { label: "ERROR", color: "#e11d48" }
+              : meeting
+                ? { label: "RAPAT", color: "#0ea5e9" }
+                : on
+                  ? { label: "KERJA", color: "#34d399" }
+                  : { label: "REHAT", color: "#a78bfa" }
+          : { label: act.label.toUpperCase(), color: act.color };
+        const hasLiveJob = job?.status === "running" || job?.status === "queued";
+        // In real mode a paused/off agent doesn't get to claim its queued job
+        const paused = !demoShift && (act.kind === "dijeda" || act.kind === "nonaktif");
+        const task = paused
+          ? act.reason
           : failed
-            ? { label: "ERROR", color: "#e11d48" }
-            : meeting
-              ? { label: "RAPAT", color: "#0ea5e9" }
-              : on
-                ? { label: "KERJA", color: "#34d399" }
-                : { label: "REHAT", color: "#a78bfa" };
-        const task = failed
-          ? `${job?.title ?? "Job gagal"} — pengisian ulang`
-          : meeting
-            ? "Standup harian di meeting room"
-            : (job?.status === "running" || job?.status === "queued") && on
+            ? `${job?.title ?? "Job gagal"} — pengisian ulang`
+            : hasLiveJob
               ? job.title
-              : on
-                ? a.task
-                : "Rehat di ruang rehat";
-        const pct = job && on && !meeting ? Math.round(job.progress * 100) : null;
+              : demoShift
+                ? meeting
+                  ? "Standup harian di meeting room"
+                  : on
+                    ? a.task
+                    : "Rehat di ruang rehat"
+                : act.reason;
+        const pct = !paused && job && job.status !== "done" ? Math.round(job.progress * 100) : null;
         return (
           <button
             key={a.id}
@@ -756,7 +815,7 @@ function AgentCards() {
                 />
               </div>
               <span className="shrink-0 text-[8.5px] font-bold text-[#98a1c4]">
-                {pct !== null ? `${pct}%` : on ? "—" : "off"}
+                {pct !== null ? `${pct}%` : act.kind === "nonaktif" ? "off" : demoShift && !on ? "off" : "—"}
               </span>
             </div>
           </button>

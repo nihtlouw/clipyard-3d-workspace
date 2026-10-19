@@ -293,3 +293,36 @@ scrollbar tipis gelap (`.hq-scroll`) sehingga label waktu tidak terpotong;
 kontrol tampilan atas digabung jadi satu cluster pill; kartu agen menampilkan
 progress bar + persentase (menggantikan baris token); label waktu lebih
 ramah ("5 mnt"). Bukti: `screenshots/polish-hud-*.png`.
+
+# Fase 7 — Mode kerja agen (24/7 / jadwal / manual) + Mode Demo 9–5
+
+Agen AI tidak lagi "berhenti" mengikuti jam kantor — pekerjaan (job,
+progres, approval) memang selalu berjalan 24/7, dan kini tampilannya jujur
+soal itu:
+
+- **Mode kerja per agen** (tab Konfigurasi / `/agen`): **Selalu aktif (24/7)**
+  — default; **Ikuti jadwal** — jendela jam bebas diatur (mengikuti jam sim,
+  bisa melewati tengah malam); saklar **Agen aktif** tetap jadi on/off manual
+  penuh. Status nyata agen dihitung satu sumber (`agentActivity` di
+  `hq-profiles.ts`): Kerja / Antre / Menunggu OK / Error / Santai /
+  Di luar jadwal / Nonaktif, lengkap dengan kalimat alasannya.
+- **Saklar "Mode Demo 9–5"** di panel Jam Sim (tersimpan, default menyala):
+  menyala = koreografi kantor seperti semula (desk 09–17, standup 13:00,
+  ruang rehat setelahnya) murni sebagai demo; mati = **posisi robot adalah
+  statusnya** — meja = bekerja, **ruang meeting = menunggu OK darimu**,
+  **ruang istirahat = nganggur / di luar jadwal / nonaktif**. Kartu agen,
+  tile "AGEN AKTIF", dan narasi feed mengikuti mode yang sama; job yang
+  sedang jalan tidak pernah lagi disembunyikan label "REHAT".
+- Momen standup 13:00 kini menghasilkan sesuatu: **laporan harian otomatis**
+  dibuat dan tersimpan di Dokumen (tag `otomatis`) setiap jam sim melewati
+  13:00, dengan throttle waktu-nyata. Pembuat laporan dipindah ke
+  `src/lib/hq-report.ts` dan dipakai bersama halaman `/laporan` (kini juga
+  memuat kolom Mode kerja).
+
+Catatan: di mode LIVE studio bersifat monitor — penegakan jadwal yang
+benar-benar menahan job tetap milik pipeline (n8n); studio menampilkan
+status & niat konfigurasinya.
+
+Bukti visual: `screenshots/fase7-*.png` (mode nyata jam 20:00 — agen 24/7
+tetap di meja, yang terjadwal/nonaktif di ruang rehat, yang menunggu OK di
+ruang meeting; demo standup tetap utuh).

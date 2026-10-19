@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { AGENTS, MEETING_SEATS, ROOM, type AgentInfo } from "@/lib/hq-data";
+import { agentActivity } from "@/lib/hq-profiles";
 import { createNameplate } from "@/lib/hq-textures";
 import { currentJobFor } from "@/lib/hq-jobs";
 import { isMeeting, isOnShift, useHqStore } from "@/lib/hq-store";
@@ -91,25 +92,37 @@ function Robot({ info, index }: { info: AgentInfo; index: number }) {
     const d = Math.min(delta, 0.1);
     const st = useHqStore.getState();
     const hour = st.hour;
-    const on = isOnShift(hour);
-    const meeting = on && isMeeting(hour);
     const t = state.clock.elapsedTime;
     const job = currentJobFor(info.id, st.jobs);
     const failed = job?.status === "failed";
     const waitingOk = st.approvals.some((ap) => ap.agentId === info.id);
+    // Fase 7: demo choreography follows the office clock; otherwise the
+    // robot's placement mirrors its real work state (desk = working,
+    // meeting room = waiting for the owner, lounge = idle/paused/off).
+    const demo = st.demoShift;
+    const act = profile ? agentActivity(profile, job, waitingOk, hour) : null;
+    const on = demo
+      ? isOnShift(hour)
+      : act !== null && (act.kind === "kerja" || act.kind === "antre" || act.kind === "minta-ok" || act.kind === "gagal");
+    const meeting = demo ? on && isMeeting(hour) : act?.kind === "minta-ok";
 
     // ---- destination + status text ----
     let px: number, py: number, pz: number, yaw: number, statusText: string, key: string;
     if (meeting) {
       px = seatPos.pos[0]; pz = seatPos.pos[1]; py = ROOM.SEAT_Y; yaw = seatPos.yaw;
-      statusText = "standup"; key = "meeting";
+      statusText = demo ? "standup" : "minta OK"; key = "meeting";
     } else if (on) {
       px = info.desk[0]; pz = info.desk[1]; py = ROOM.SEAT_Y; yaw = info.deskYaw;
       statusText = failed ? "error!" : waitingOk ? "minta OK" : job?.status === "queued" ? "nunggu tugas" : info.verb;
       key = "desk";
     } else {
       px = info.lounge[0]; pz = info.lounge[1]; py = info.loungeY; yaw = info.loungeYaw;
-      statusText = failed ? "ngisi token…" : "rehat"; key = "lounge";
+      statusText = demo
+        ? failed ? "ngisi token…" : "rehat"
+        : act?.kind === "nonaktif" ? "off"
+          : act?.kind === "dijeda" ? "di luar jadwal"
+            : failed ? "ngisi token…" : "santai";
+      key = "lounge";
     }
 
     const g = group.current;

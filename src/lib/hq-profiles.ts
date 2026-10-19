@@ -7,7 +7,16 @@
  * lives here as a profile that the store holds and persists to localStorage.
  */
 import { AGENTS, type AgentId, type AgentInfo } from "@/lib/hq-data";
+import type { ClipJob } from "@/lib/hq-jobs";
 import { loadJSON, saveJSON } from "@/lib/hq-persist";
+
+/**
+ * How an agent decides to work (Fase 7):
+ *  - "always"   → 24/7 whenever a job exists (the sensible AI default)
+ *  - "schedule" → only inside the configured hour window (sim clock)
+ * The `enabled` flag remains the manual master switch on top of this.
+ */
+export type WorkMode = "always" | "schedule";
 
 export interface AgentProfile {
   id: AgentId;
@@ -27,6 +36,11 @@ export interface AgentProfile {
   enabled: boolean;
   /** when true, the UI hints this agent's approvals may auto-pass upstream */
   autoApprove: boolean;
+  /** 24/7 vs only inside the schedule window below (Fase 7) */
+  workMode: WorkMode;
+  /** schedule window on the sim clock, whole hours 0–24 (start > end wraps midnight) */
+  scheduleStart: number;
+  scheduleEnd: number;
 }
 
 export const PROFILE_KEY = "clipyard.agents.v1";
@@ -100,6 +114,9 @@ export function defaultProfiles(): Record<AgentId, AgentProfile> {
       webhookUrl: "",
       enabled: true,
       autoApprove: false,
+      workMode: "always",
+      scheduleStart: 9,
+      scheduleEnd: 17,
       ...EXTRAS[a.id],
     };
   }
@@ -135,6 +152,9 @@ function sanitizeProfiles(raw: unknown): Record<AgentId, AgentProfile> {
       webhookUrl: typeof s.webhookUrl === "string" ? s.webhookUrl.trim().slice(0, 300) : "",
       enabled: s.enabled !== false,
       autoApprove: s.autoApprove === true,
+      workMode: s.workMode === "schedule" ? "schedule" : "always",
+      scheduleStart: clampHour(s.scheduleStart, cur.scheduleStart),
+      scheduleEnd: clampHour(s.scheduleEnd, cur.scheduleEnd),
     };
   }
   return base;
@@ -162,3 +182,80 @@ export const AGENT_COLOR_SWATCHES = [
   "#22d3ee", "#a78bfa", "#fbbf24", "#34d399", "#f472b6", "#fb923c",
   "#60a5fa", "#f87171", "#a3e635", "#e879f9", "#94a3b8", "#facc15",
 ];
+
+/* ------------------------------ work mode & live activity (Fase 7) ------------------------------ */
+
+function clampHour(v: unknown, fallback: number): number {
+  return typeof v === "number" && Number.isFinite(v)
+    ? Math.min(24, Math.max(0, Math.round(v)))
+    : fallback;
+}
+
+export function fmtHourLabel(h: number): string {
+  return `${String(Math.floor(((h % 24) + 24) % 24)).padStart(2, "0")}.00`;
+}
+
+/** True when `hour` (sim clock) falls inside the agent's schedule window. */
+export function isInSchedule(p: AgentProfile, hour: number): boolean {
+  if (p.workMode !== "schedule") return true;
+  const s = p.scheduleStart;
+  const e = p.scheduleEnd;
+  if (s === e) return true; // degenerate window = always
+  return s < e ? hour >= s && hour < e : hour >= s || hour < e; // overnight wraps midnight
+}
+
+export type AgentActivityKind =
+  | "kerja"
+  | "antre"
+  | "minta-ok"
+  | "gagal"
+  | "nganggur"
+  | "dijeda"
+  | "nonaktif";
+
+export interface AgentActivity {
+  kind: AgentActivityKind;
+  /** short chip label, e.g. "Kerja" */
+  label: string;
+  /** one friendly sentence explaining the state */
+  reason: string;
+  /** chip/dot color */
+  color: string;
+}
+
+/**
+ * The agent's *real* current state — drives robot placement and status
+ * labels whenever the 9–5 demo choreography is off. Priority: switched off
+ * > outside schedule > waiting for the owner > failed > running > queued > idle.
+ */
+export function agentActivity(
+  p: AgentProfile,
+  job: ClipJob | undefined,
+  hasApproval: boolean,
+  hour: number,
+): AgentActivity {
+  if (!p.enabled) {
+    return { kind: "nonaktif", label: "Nonaktif", reason: "Dimatikan manual dari konfigurasi agen.", color: "#64748b" };
+  }
+  if (!isInSchedule(p, hour)) {
+    return {
+      kind: "dijeda",
+      label: "Di luar jadwal",
+      reason: `Jadwal kerja ${fmtHourLabel(p.scheduleStart)}–${fmtHourLabel(p.scheduleEnd)} — di luar itu agen beristirahat.`,
+      color: "#a78bfa",
+    };
+  }
+  if (hasApproval) {
+    return { kind: "minta-ok", label: "Menunggu OK", reason: "Pekerjaannya menunggu persetujuanmu.", color: "#fbbf24" };
+  }
+  if (job?.status === "failed") {
+    return { kind: "gagal", label: "Error", reason: "Job terakhir gagal — menunggu tugas berikutnya.", color: "#fb7185" };
+  }
+  if (job?.status === "running") {
+    return { kind: "kerja", label: "Kerja", reason: "Sedang mengerjakan tugas.", color: "#34d399" };
+  }
+  if (job?.status === "queued") {
+    return { kind: "antre", label: "Antre", reason: "Tugas sudah masuk, menunggu giliran jalan.", color: "#94a3b8" };
+  }
+  return { kind: "nganggur", label: "Santai", reason: "Belum ada tugas saat ini.", color: "#38bdf8" };
+}

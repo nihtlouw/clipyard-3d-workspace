@@ -85,11 +85,12 @@ export function StudioLighting() {
 let lastShift: boolean | null = null;
 let lastMeeting: boolean | null = null;
 
-/** Advances the sim clock; logs shift/stand-up boundaries into the feed. */
+/** Advances the sim clock; logs shift/stand-up boundaries into the feed (demo mode only). */
 export function ClockDriver() {
   useFrame((_state, delta) => {
     const store = useHqStore.getState();
     store.tick(Math.min(delta, 0.1));
+    if (!store.demoShift) return; // real work mode: no office-hours narration
     const hour = useHqStore.getState().hour;
     const on = isOnShift(hour);
     if (lastShift === null) lastShift = on;

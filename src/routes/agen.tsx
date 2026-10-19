@@ -6,6 +6,7 @@ import { DashShell } from "@/components/dash/shell";
 import { AgentDot, Panel, ProgressBar, StatusBadge, btnGhost } from "@/components/dash/ui";
 import { AGENTS, type AgentId } from "@/lib/hq-data";
 import { currentJobFor } from "@/lib/hq-jobs";
+import { fmtHourLabel } from "@/lib/hq-profiles";
 import { useHqStore } from "@/lib/hq-store";
 
 export const Route = createFileRoute("/agen")({
@@ -125,6 +126,16 @@ function AgenPage() {
                     <span className="truncate">
                       <Bot className="mr-1 inline h-3 w-3" />
                       {p.model || "—"}
+                    </span>
+                    <span>
+                      Mode:{" "}
+                      <b className="text-hq-text">
+                        {!p.enabled
+                          ? "mati"
+                          : p.workMode === "schedule"
+                            ? `${fmtHourLabel(p.scheduleStart)}–${fmtHourLabel(p.scheduleEnd)}`
+                            : "24/7"}
+                      </b>
                     </span>
                     {p.autoApprove && <span className="text-emerald-300">auto-approve</span>}
                   </div>
