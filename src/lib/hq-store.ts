@@ -46,6 +46,8 @@ interface HqState {
   speed: number;
   labels: boolean;
   autoOrbit: boolean;
+  /** hide every HUD panel for a clean, reference-style diorama view (key H) */
+  hudHidden: boolean;
   /** lighting override: follow the sim clock, force day, or force night */
   mode: ViewMode;
   selection: Selection | null;
@@ -79,6 +81,7 @@ interface HqState {
   setSpeed: (s: number) => void;
   setLabels: (v: boolean) => void;
   setAutoOrbit: (v: boolean) => void;
+  setHudHidden: (v: boolean) => void;
   setMode: (m: ViewMode) => void;
   select: (s: Selection | null) => void;
   requestFocus: () => void;
@@ -94,6 +97,7 @@ export const useHqStore = create<HqState>((set, get) => ({
   speed: 0.2,
   labels: true,
   autoOrbit: false,
+  hudHidden: false,
   // default to the reference look: warm night lighting while the crew is on shift
   mode: "night",
   selection: null,
@@ -167,6 +171,7 @@ export const useHqStore = create<HqState>((set, get) => ({
   setSpeed: (s) => set({ speed: s }),
   setLabels: (v) => set({ labels: v }),
   setAutoOrbit: (v) => set({ autoOrbit: v }),
+  setHudHidden: (v) => set({ hudHidden: v }),
   setMode: (m) => set({ mode: m }),
   select: (s) => set({ selection: s, focusToken: get().focusToken + 1 }),
   requestFocus: () => set({ focusToken: get().focusToken + 1 }),

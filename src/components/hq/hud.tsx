@@ -6,6 +6,8 @@ import {
   ChevronLeft,
   Clock3,
   Crosshair,
+  Eye,
+  EyeOff,
   Inbox,
   MapPin,
   Maximize,
@@ -35,6 +37,35 @@ const KIND_LABEL: Record<VehicleInfo["kind"], string> = {
 };
 
 export function HqHud() {
+  const hudHidden = useHqStore((s) => s.hudHidden);
+  const setHudHidden = useHqStore((s) => s.setHudHidden);
+
+  // H toggles a clean, panel-free diorama view (nice for screenshots/OBS)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "h" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      setHudHidden(!useHqStore.getState().hudHidden);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [setHudHidden]);
+
+  if (hudHidden) {
+    return (
+      <div className="pointer-events-none fixed inset-0 z-50 select-none">
+        <button
+          onClick={() => setHudHidden(false)}
+          className="pointer-events-auto absolute bottom-4 right-4 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-[#11162a]/70 px-3.5 py-2 text-[11px] font-bold text-white/85 opacity-40 shadow-sm backdrop-blur-xl transition hover:opacity-100"
+          title="Tekan H untuk menampilkan UI"
+        >
+          <Eye className="h-3.5 w-3.5" /> Tampilkan UI
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="pointer-events-none fixed inset-0 z-50 select-none">
       {/* Responsive wrapper that adapts to viewport */}
@@ -50,7 +81,7 @@ export function HqHud() {
       </div>
       {/* Flexible overlay hint */}
       <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-4 py-1 text-[10px] font-medium text-white/80 backdrop-blur-md lg:hidden">
-        Seret • Putar • Zoom • Klik agen
+        Seret • Putar • Zoom • Klik robot
       </div>
     </div>
   );
@@ -191,6 +222,7 @@ function ViewControls() {
   const autoOrbit = useHqStore((s) => s.autoOrbit);
   const setAutoOrbit = useHqStore((s) => s.setAutoOrbit);
   const requestResetView = useHqStore((s) => s.requestResetView);
+  const setHudHidden = useHqStore((s) => s.setHudHidden);
   const [full, setFull] = useState(false);
 
   const toggleFullscreen = () => {
@@ -265,9 +297,16 @@ function ViewControls() {
         >
           {full ? <Minimize className="h-3 w-3" /> : <Maximize className="h-3 w-3" />} Layar penuh
         </button>
+        <button
+          onClick={() => setHudHidden(true)}
+          className="inline-flex items-center gap-1 rounded-full border border-hq-line bg-hq-panel px-3 py-1.5 text-[10.5px] font-bold text-hq-muted shadow-sm backdrop-blur-xl transition-colors hover:text-hq-text"
+          title="Sembunyikan semua panel (tombol H)"
+        >
+          <EyeOff className="h-3 w-3" /> Sembunyikan UI
+        </button>
       </div>
       <p className="pointer-events-none absolute bottom-[7rem] left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-full bg-white/10 px-3 py-1 text-[9.5px] font-semibold text-[#eef1ff]/70 shadow-sm backdrop-blur-md lg:block">
-        seret • geser sudut • scroll/pinch zoom • klik robot • F layar penuh
+        seret • geser sudut • scroll/pinch zoom • klik robot • F layar penuh • H sembunyikan UI
       </p>
     </>
   );

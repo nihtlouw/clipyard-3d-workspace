@@ -221,10 +221,21 @@ export function ResponsiveZoom() {
   const camera = useThree((s) => s.camera) as THREE.OrthographicCamera;
   const size = useThree((s) => s.size);
   const lastFit = useRef(0);
+  const lastReset = useRef(-1);
 
   const fit = Math.max(14, Math.min(58, size.width / 26.2, size.height / 18.4));
 
   useFrame(() => {
+    // "Sudut awal" restores the saved camera (mount-time zoom) via controls.reset();
+    // re-apply the responsive fit zoom so reset == the intended starting framing.
+    const resetToken = useHqStore.getState().resetViewToken;
+    if (resetToken !== lastReset.current) {
+      lastReset.current = resetToken;
+      camera.zoom = fit;
+      camera.updateProjectionMatrix();
+      lastFit.current = fit;
+      return;
+    }
     if (lastFit.current !== 0 && Math.abs(camera.zoom - lastFit.current) > 0.5) return;
     if (Math.abs(camera.zoom - fit) > 0.05) {
       camera.zoom = fit;

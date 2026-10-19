@@ -243,3 +243,11 @@ Denah & konstanta lantai kini terpusat di `src/lib/hq-data.ts`
 `world.tsx`, `agents.tsx`, dan `sky.tsx`.
 
 Bukti visual: `screenshots/redesign-glass-*.png` (malam, siang, standup).
+
+Polish 5b: tombol **Sembunyikan UI** (atau tombol `H`) menghilangkan semua
+panel untuk tampilan diorama bersih ala referensi (bagus untuk screenshot /
+layar tampil) — pill kecil "Tampilkan UI" mengembalikannya; tombol
+**Sudut awal** kini juga memulihkan zoom fit responsif, dan tinggi duduk
+sofa/bantal lantai di ruang rehat diselaraskan ke furniturnya.
+Bukti: `screenshots/redesign-glass-clean*.png` (tanpa HUD, malam & siang —
+juga dipakai landing page).
