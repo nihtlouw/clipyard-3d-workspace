@@ -36,15 +36,22 @@ const KIND_LABEL: Record<VehicleInfo["kind"], string> = {
 
 export function HqHud() {
   return (
-    <div className="pointer-events-none fixed inset-0 z-10 select-none">
-      <TopBar />
-      <ViewControls />
-      <ActivityFeed />
-      <ClockPanel />
-      <ApprovalInbox />
-      <BacklogPanel />
-      <AgentCards />
-      <DetailCard />
+    <div className="pointer-events-none fixed inset-0 z-50 select-none">
+      {/* Responsive wrapper that adapts to viewport */}
+      <div className="absolute inset-0 overflow-hidden">
+        <TopBar />
+        <ViewControls />
+        <ActivityFeed />
+        <ClockPanel />
+        <ApprovalInbox />
+        <BacklogPanel />
+        <AgentCards />
+        <DetailCard />
+      </div>
+      {/* Flexible overlay hint */}
+      <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-4 py-1 text-[10px] font-medium text-white/80 backdrop-blur-md lg:hidden">
+        Seret • Putar • Zoom • Klik agen
+      </div>
     </div>
   );
 }
@@ -82,27 +89,26 @@ function FloorBadge() {
 
 function TopBar() {
   return (
-    <div className="pointer-events-none absolute left-3 top-3 flex items-start gap-2">
-      <div className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-[#232746]/8 bg-[#ffffff]/80 px-3.5 py-2.5 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl transition hover:border-[#232746]/15 hover:bg-[#ffffff]/95">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#2e3192] via-[#4f46ba] to-[#7c3aed] shadow-[0_8px_18px_-6px_rgba(46,49,146,0.5)]">
-          <Zap className="h-5 w-5 text-white" strokeWidth={2.6} />
+    <div className="pointer-events-none absolute left-2 top-2 sm:left-3 sm:top-3 flex w-auto items-start gap-2">
+      <div className="pointer-events-auto flex max-w-[calc(100vw-1rem)] items-center gap-2 rounded-2xl border border-[#232746]/8 bg-[#ffffff]/80 px-3 py-2 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl transition hover:border-[#232746]/15 hover:bg-[#ffffff]/95 sm:px-3.5 sm:py-2.5">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#2e3192] via-[#4f46ba] to-[#7c3aed] shadow-[0_6px_14px_-4px_rgba(46,49,146,0.5)] sm:h-10 sm:w-10 sm:rounded-2xl">
+          <Zap className="h-4 w-4 text-white sm:h-5 sm:w-5" strokeWidth={2.6} />
         </span>
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-[15px] font-extrabold tracking-tight text-[#232746]">Kantor CLIPYARD HQ</span>
+            <span className="truncate text-[13px] font-extrabold tracking-tight text-[#232746] sm:text-[15px]">Kantor CLIPYARD HQ</span>
             <FloorBadge />
           </div>
-          <p className="text-[10.5px] font-semibold text-[#7a81a6]">AWAN7 Studio · 6 agen aktif</p>
+          <p className="truncate text-[9px] font-semibold text-[#7a81a6] sm:text-[10.5px]">AWAN7 Studio · 6 agen aktif</p>
         </div>
       </div>
       <div className="pointer-events-auto flex items-center gap-2">
         <SoundPill />
         <a
           href="/"
-          className="hidden items-center gap-1.5 rounded-full border border-hq-line bg-hq-panel px-3.5 py-2 text-xs font-semibold text-hq-muted shadow-sm backdrop-blur-xl transition-colors hover:border-hq-violet/50 hover:text-hq-text xl:inline-flex"
+          className="inline-flex items-center gap-1 rounded-full border border-[#232746]/10 bg-[#ffffff]/60 px-2.5 py-2 text-[10px] font-semibold text-[#232746] shadow-sm backdrop-blur-xl transition hover:bg-white hover:shadow-md sm:px-3.5 sm:text-xs md:gap-1.5 xl:inline-flex"
         >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          Company site
+          <ChevronLeft className="h-3 w-3" /> Company
         </a>
       </div>
     </div>
@@ -145,7 +151,6 @@ function StatsBar() {
   const stats = useHqStore((s) => s.stats);
   const jobs = useHqStore((s) => s.jobs);
   const hour = useHqStore((s) => s.hour);
-  const actions = useHqStore((s) => s.actions);
   const [, force] = useReducer((x: number) => x + 1, 0);
 
   useEffect(() => {
@@ -165,12 +170,12 @@ function StatsBar() {
   const meeting = isMeeting(hour);
 
   return (
-    <div className="pointer-events-auto absolute right-3 top-3 grid grid-cols-3 gap-1.5">
+    <div className="pointer-events-auto absolute right-2 top-[4.5rem] grid grid-cols-2 gap-1.5 sm:right-3 sm:top-[4.6rem] sm:grid-cols-3 md:top-14 lg:top-[4.4rem]">
       <StatTile label="JAM WIB" value={wib} />
       <StatTile label="TOKEN KELUAR" value={formatShort(tokensOut)} />
       <StatTile label="TOKEN DIPROSES" value={running ? formatShort(running * 1400) : "0"} accent={running ? "#0ea5e9" : undefined} />
       <StatTile label="RAPAT BERIKUTNYA" value={meeting ? "SEKARANG" : "13.00"} accent={meeting ? "#047857" : undefined} />
-      <StatTile label="AKSI" value={formatShort(actions)} />
+      <StatTile label="AKSI" value={formatShort(useHqStore((s) => s.actions))} />
       <StatTile label="SESI AKTIF" value={`${AGENTS.filter(() => isOnShift(hour)).length}/6`} />
     </div>
   );
@@ -214,7 +219,7 @@ function ViewControls() {
   return (
     <>
       <StatsBar />
-      <div className="pointer-events-auto absolute left-1/2 top-3 flex -translate-x-1/2 flex-wrap items-center justify-center gap-1.5">
+      <div className="pointer-events-auto absolute left-1/2 top-[3.5rem] flex -translate-x-1/2 flex-wrap items-center justify-center gap-1.5 sm:top-3 md:top-[3.2rem]">
         <div className="flex items-center rounded-full border border-hq-line bg-hq-panel p-1 shadow-sm backdrop-blur-xl">
           {modes.map((m) => (
             <button
@@ -261,7 +266,7 @@ function ViewControls() {
           {full ? <Minimize className="h-3 w-3" /> : <Maximize className="h-3 w-3" />} Layar penuh
         </button>
       </div>
-      <p className="pointer-events-none absolute bottom-[8.6rem] left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-full bg-hq-panel/80 px-3 py-1 text-[9.5px] font-semibold text-hq-muted shadow-sm backdrop-blur lg:block">
+      <p className="pointer-events-none absolute bottom-[7rem] left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-full bg-[#232746]/20 px-3 py-1 text-[9.5px] font-semibold text-[#232746]/70 shadow-sm backdrop-blur-md lg:block">
         seret • putar 360° • scroll/pinch • zoom • klik karakter • F layar penuh
       </p>
     </>
@@ -283,8 +288,8 @@ function ActivityFeed() {
   const shown = feed.filter((e) => !filter || e.color === filter).slice(0, 9);
 
   return (
-    <div className="pointer-events-auto absolute left-3 top-[4.6rem] hidden w-[248px] rounded-2xl border border-hq-line bg-hq-panel p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.45)] backdrop-blur-xl lg:block">
-      <p className="text-[10px] font-bold tracking-[0.14em] text-hq-muted">AKTIVITAS LANGSUNG</p>
+    <div className="pointer-events-auto absolute left-2 top-[10rem] hidden w-[220px] rounded-2xl border border-[#232746]/8 bg-[#ffffff]/90 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl lg:left-3 lg:top-[12.5rem] lg:block lg:w-[248px]">
+      <p className="text-[10px] font-bold tracking-[0.14em] text-[#7a81a6]">AKTIVITAS LANGSUNG</p>
       <div className="mt-1.5 flex flex-wrap gap-1">
         <button
           onClick={() => setFilter(null)}
@@ -310,7 +315,7 @@ function ActivityFeed() {
           </button>
         ))}
       </div>
-      <div className="mt-2 max-h-[38vh] space-y-1.5 overflow-y-auto pr-1">
+      <div className="mt-2 max-h-[32vh] space-y-1.5 overflow-y-auto pr-1 sm:max-h-[38vh]">
         {shown.map((e) => (
           <div key={e.id} className="flex items-start gap-1.5">
             <span
@@ -343,7 +348,7 @@ function ClockPanel() {
   const shiftP = Math.min(1, Math.max(0, (hour - 9) / 8));
 
   return (
-    <div className="pointer-events-auto absolute right-3 top-[7.4rem] hidden w-[236px] rounded-2xl border border-hq-line bg-hq-panel p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.45)] backdrop-blur-xl md:block">
+    <div className="pointer-events-auto absolute right-2 top-[20rem] hidden w-[220px] rounded-2xl border border-[#232746]/8 bg-[#ffffff]/90 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl md:right-3 md:block md:w-[236px] lg:top-[21.6rem]">
       <div className="flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.14em] text-hq-muted">
           <Clock3 className="h-3.5 w-3.5" /> JAM SIM
@@ -440,7 +445,7 @@ function ApprovalInbox() {
   };
 
   return (
-    <div className="pointer-events-auto absolute right-3 top-[19.6rem] hidden w-[236px] rounded-2xl border border-[#f0d9a0] bg-[#fff8ecf2] p-3 shadow-[0_18px_40px_-20px_rgba(180,83,9,0.5)] backdrop-blur-xl md:block">
+    <div className="pointer-events-auto absolute right-2 top-[43rem] hidden w-[220px] rounded-2xl border border-[#f0d9a0] bg-[#fff8ecf2] p-3 shadow-[0_18px_40px_-20px_rgba(180,83,9,0.5)] backdrop-blur-2xl md:right-3 md:block md:w-[236px] lg:top-[42rem]">
       <div className="flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.14em]" style={{ color: AMBER }}>
           <Inbox className="h-3.5 w-3.5" /> APPROVAL INBOX
@@ -514,7 +519,7 @@ function BacklogPanel() {
   const agentOf = (id: string) => AGENTS.find((a) => a.id === id);
 
   return (
-    <div className="pointer-events-auto absolute right-3 top-[19.6rem] hidden w-[236px] rounded-2xl border border-hq-line bg-hq-panel p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.45)] backdrop-blur-xl md:block">
+    <div className="pointer-events-auto absolute right-2 top-[32rem] hidden w-[220px] rounded-2xl border border-[#232746]/8 bg-[#ffffff]/90 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl md:right-3 md:block md:w-[236px] lg:top-[30rem]">
       <div className="flex items-center justify-between">
         <p className="text-[10px] font-bold tracking-[0.14em] text-hq-muted">BACKLOG</p>
         <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-hq-line/70 px-1.5 text-[10px] font-extrabold text-hq-text">
@@ -571,7 +576,7 @@ function AgentCards() {
   const meeting = isMeeting(hour);
 
   return (
-    <div className="pointer-events-auto absolute bottom-2 left-1/2 flex w-[calc(100%-1.5rem)] max-w-[1200px] -translate-x-1/2 gap-1.5 overflow-x-auto pb-1">
+    <div className="pointer-events-auto absolute bottom-2 left-1/2 flex w-[calc(100%-1rem)] max-w-[1200px] -translate-x-1/2 gap-1 overflow-x-auto pb-1 sm:gap-1.5 md:bottom-3 lg:bottom-4">
       {AGENTS.map((a) => {
         const job = currentJobFor(a.id, jobs);
         const waiting = approvals.some((ap) => ap.agentId === a.id);
@@ -601,31 +606,31 @@ function AgentCards() {
           <button
             key={a.id}
             onClick={() => select({ kind: "agent", id: a.id })}
-            className="min-w-[168px] flex-1 rounded-2xl border border-hq-line bg-hq-panel p-2.5 text-left shadow-[0_14px_30px_-18px_rgba(35,39,70,0.5)] backdrop-blur-xl transition-transform hover:scale-[1.02]"
+            className="min-w-[140px] shrink-0 flex-1 rounded-2xl border border-[#232746]/8 bg-[#ffffff]/90 p-2 text-left shadow-[0_10px_24px_-12px_rgba(35,39,70,0.4)] backdrop-blur-xl transition hover:scale-[1.02] hover:shadow-[0_14px_30px_-12px_rgba(35,39,70,0.5)] sm:min-w-[168px] sm:p-2.5"
           >
             <div className="flex items-center gap-1.5">
               <span
-                className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-extrabold text-white"
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-extrabold text-white sm:h-6 sm:w-6 sm:text-[10px]"
                 style={{ backgroundColor: a.color }}
               >
                 {a.name[0]}
               </span>
-              <span className="min-w-0 flex-1 truncate text-[11.5px] font-extrabold text-hq-text">{a.name}</span>
+              <span className="min-w-0 flex-1 truncate text-[10px] font-extrabold text-[#232746] sm:text-[11.5px]">{a.name}</span>
               <span
-                className="shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-bold tracking-[0.08em]"
+                className="shrink-0 rounded-full px-1.5 py-0.5 text-[7px] font-bold tracking-[0.08em] sm:text-[8px]"
                 style={{ backgroundColor: `${status.color}1c`, color: status.color }}
               >
                 {status.label}
               </span>
             </div>
-            <p className="mt-1 truncate text-[9.5px] font-medium leading-tight text-hq-muted">
+            <p className="mt-0.5 truncate text-[8px] font-medium leading-tight text-[#7a81a6] sm:mt-1 sm:text-[9.5px]">
               {a.role} · {a.name === "AKIRA" ? "Tim inti" : "Klip"}
             </p>
-            <p className="mt-0.5 truncate text-[10.5px] font-bold leading-snug text-hq-text">
+            <p className="mt-0.5 truncate text-[9px] font-bold leading-snug text-[#232746] sm:mt-0.5 sm:text-[10.5px]">
               {status.label === "KERJA" ? "▶ " : "▸ "}
               {task}
             </p>
-            <p className="mt-1 font-mono text-[8.5px] font-semibold text-hq-muted">
+            <p className="mt-0.5 font-mono text-[7px] font-semibold text-[#7a81a6] sm:mt-1 sm:text-[8.5px]">
               {agentActions} aksi · {formatShort(tokens)} tok · {formatShort(ctx)} ctx
             </p>
           </button>
@@ -662,7 +667,7 @@ function DetailCard() {
   const on = isOnShift(hour);
 
   return (
-    <div className="pointer-events-auto absolute bottom-[7.2rem] left-3 w-[228px] rounded-2xl border border-hq-line bg-hq-panel p-3.5 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.45)] backdrop-blur-xl sm:w-[248px] lg:bottom-[8.8rem]">
+    <div className="pointer-events-auto absolute bottom-[7.5rem] left-2 w-[200px] rounded-2xl border border-[#232746]/8 bg-[#ffffff]/90 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.45)] backdrop-blur-2xl sm:left-3 sm:w-[228px] sm:p-3.5 lg:bottom-[9rem] lg:w-[248px]">
       <div className="flex items-start justify-between">
         {agent ? (
           <div className="flex items-center gap-2.5">
