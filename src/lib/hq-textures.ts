@@ -7,6 +7,7 @@
 import * as THREE from "three";
 import { AGENTS, type AgentInfo } from "@/lib/hq-data";
 import type { JobStatus } from "@/lib/hq-jobs";
+import { realHourNow } from "@/lib/hq-store-helpers";
 
 function makeCanvas(w: number, h: number) {
   const canvas = document.createElement("canvas");
@@ -75,7 +76,7 @@ const TOWERS: Tower[] = (() => {
   return towers;
 })();
 
-/** Big window view: city skyline whose sky follows the sim clock. */
+/** Big window view: city skyline whose sky follows the real clock. */
 export function createSkyline(): SkylineTex {
   const canvas = makeCanvas(SKY_W, SKY_H);
   const ctx = ctx2d(canvas);
@@ -377,7 +378,7 @@ export function createWhiteboard(): WhiteboardTex {
   }
 
   redraw(
-    10.5,
+    realHourNow(),
     0,
     AGENTS.map((a) => ({ name: a.name, color: a.color, p: a.progress, failed: false })),
     { clipsShipped: 0, renderQueue: 0, avgClipSec: 42 },
@@ -693,7 +694,7 @@ export function createMeetingScreen() {
     ctx.fillText(onShift ? "WORKDAY IN PROGRESS" : "OFF SHIFT — SEE YOU AT 09:00", 28, 262);
     tex.needsUpdate = true;
   };
-  redraw(10.5, true);
+  redraw(realHourNow(), true);
   return { tex, redraw };
 }
 

@@ -342,3 +342,18 @@ selesai" — dan pill "N approval menunggu" di header menjadi tautan ke
 chip kartu (status), papan nama/ruang meeting (ambient), badge Kelola
 (penghitung), feed (riwayat). Bukti: `screenshots/dedup-*.png` + asersi
 terprogram (BACKLOG=0, header inbox=1, JAM WIB=0).
+
+Polish 7c (jam nyata): jam simulasi diganti **waktu lokal browser**. Store
+kini disinkronkan `syncClock()` 1×/detik dari `Date` (dulu `tick` per-frame
+dengan tombol speed 0.5×/1×/3× + slider scrub — semua kontrol sim dihapus).
+Panel "JAM SIM" menjadi **WAKTU NYATA**: HH:MM:SS + label zona
+(WIB/WITA/WIT/UTC±n), tanggal Indonesia, pita posisi dalam sehari (amber =
+jendela shift demo 09–17, titik = sekarang), label PAGI/SIANG/SORE/MALAM.
+Yang kini mengikuti jam sungguhan: langit pagi/Senja/malam, jadwal per-agen
+(mode terjadwal), koreografi Demo 9–5, standup + laporan otomatis 13:00,
+jam dinding ruang meeting, dan ambience (mode 24/7 tidak lagi senyap di
+malam hari; layar dinding/desk di mode nyata mengikuti ada/tidaknya
+pekerjaan, bukan jam kantor). Default pencahayaan diubah dari paksa "Gelap"
+menjadi "Otomatis" (ikut jam nyata) dan pilihan pencahayaan kini tersimpan
+di `clipyard.settings.v1`. Bukti: `screenshots/realtime-*.png` — terpotret
+14:18 WIB (zona diemulasi Asia/Jakarta), drift jam store vs `Date` = 0.

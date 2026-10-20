@@ -16,6 +16,7 @@ import {
 import {
   dayFactors,
   isOnShift,
+  realHourNow,
 } from "@/lib/hq-store-helpers";
 import type {
   ApprovalDecision,
@@ -34,6 +35,8 @@ export {
   formatShort,
   timeAgo,
   dayFactors,
+  realHourNow,
+  tzLabel,
 } from "@/lib/hq-store-helpers";
 import { isOnShift as _isOnShift } from "@/lib/hq-store-helpers";
 void _isOnShift;
@@ -64,13 +67,25 @@ const OUTPUTS_KEY = "clipyard.outputs.v1";
 const SETTINGS_KEY = "clipyard.settings.v1";
 const MAX_OUTPUTS = 60;
 
-function loadDemoShift(): boolean {
-  const raw = loadJSON<unknown>(SETTINGS_KEY, null);
-  if (typeof raw === "object" && raw !== null && "demoShift" in raw) {
-    return (raw as { demoShift?: unknown }).demoShift !== false;
-  }
-  return true; // default: office choreography on (it's the signature demo look)
+interface Settings {
+  demoShift: boolean;
+  mode: ViewMode;
 }
+
+function loadSettings(): Settings {
+  // defaults: office choreography on (the signature demo look), lighting
+  // follows the real clock
+  const settings: Settings = { demoShift: true, mode: "auto" };
+  const raw = loadJSON<unknown>(SETTINGS_KEY, null);
+  if (typeof raw === "object" && raw !== null) {
+    const r = raw as { demoShift?: unknown; mode?: unknown };
+    if ("demoShift" in r) settings.demoShift = r.demoShift !== false;
+    if (r.mode === "auto" || r.mode === "day" || r.mode === "night") settings.mode = r.mode;
+  }
+  return settings;
+}
+
+const INITIAL_SETTINGS = loadSettings();
 
 function loadOutputs(): WorkOutput[] {
   const raw = loadJSON<unknown>(OUTPUTS_KEY, []);
@@ -89,23 +104,23 @@ function loadOutputs(): WorkOutput[] {
 }
 
 interface HqState {
-  /** simulated clock, hours 0–24 */
+  /** real local clock (browser time), fractional hours 0–24 */
   hour: number;
-  playing: boolean;
-  speed: number;
+  /** epoch ms of the last clock sync — drives the seconds/date display */
+  nowTs: number;
   labels: boolean;
   autoOrbit: boolean;
   /** hide every HUD panel for a clean, reference-style diorama view (key H) */
   hudHidden: boolean;
   /**
-   * 9–5 office choreography (Fase 7). ON = robots follow the sim clock
+   * 9–5 office choreography (Fase 7). ON = robots follow real office hours
    * (desks 09–17, standup 13:00, lounge after) purely as theater. OFF =
    * robot placement mirrors each agent's real work state (see agentActivity).
    * Jobs/data run 24/7 either way. Persisted.
    */
   demoShift: boolean;
   setDemoShift: (v: boolean) => void;
-  /** lighting override: follow the sim clock, force day, or force night */
+  /** lighting override: follow the real clock, force day, or force night */
   mode: ViewMode;
   selection: Selection | null;
   /** increments to request a camera focus (agents/vehicles + resets) */
@@ -144,9 +159,6 @@ interface HqState {
   resolveApproval: (id: string, decision: ApprovalDecision, label?: string) => void;
   /** append an activity-feed event (bounded, dedupes by exact text+minute) */
   pushEvent: (text: string, opts?: { color?: string; kind?: FeedEvent["kind"] }) => void;
-  setHour: (h: number) => void;
-  togglePlay: () => void;
-  setSpeed: (s: number) => void;
   setLabels: (v: boolean) => void;
   setAutoOrbit: (v: boolean) => void;
   setHudHidden: (v: boolean) => void;
@@ -154,22 +166,22 @@ interface HqState {
   select: (s: Selection | null) => void;
   requestFocus: () => void;
   requestResetView: () => void;
-  tick: (deltaSec: number) => void;
+  /** sync `hour`/`nowTs` to the real browser clock (called ~1×/s) */
+  syncClock: () => void;
 }
 
 let feedId = 1;
 let lastAutoReportAt = 0;
 
 export const useHqStore = create<HqState>((set, get) => ({
-  hour: 10.5,
-  playing: true,
-  speed: 0.2,
+  hour: realHourNow(),
+  nowTs: Date.now(),
   labels: true,
   autoOrbit: false,
   hudHidden: false,
-  demoShift: loadDemoShift(),
+  demoShift: INITIAL_SETTINGS.demoShift,
   setDemoShift: (v) => {
-    saveJSON(SETTINGS_KEY, { demoShift: v });
+    saveJSON(SETTINGS_KEY, { demoShift: v, mode: get().mode });
     set({ demoShift: v });
     get().pushEvent(
       v
@@ -178,8 +190,9 @@ export const useHqStore = create<HqState>((set, get) => ({
       { kind: "system" },
     );
   },
-  // default to the reference look: warm night lighting while the crew is on shift
-  mode: "night",
+  // lighting follows the real clock by default; Terang/Gelap remain manual
+  // overrides and the choice is persisted
+  mode: INITIAL_SETTINGS.mode,
   selection: null,
   focusToken: 0,
   resetViewToken: 0,
@@ -277,28 +290,29 @@ export const useHqStore = create<HqState>((set, get) => ({
       };
       return { feed: [ev, ...state.feed].slice(0, 300), actions: state.actions + 1 };
     }),
-  setHour: (h) => set({ hour: ((h % 24) + 24) % 24 }),
-  togglePlay: () => set({ playing: !get().playing }),
-  setSpeed: (s) => set({ speed: s }),
   setLabels: (v) => set({ labels: v }),
   setAutoOrbit: (v) => set({ autoOrbit: v }),
   setHudHidden: (v) => set({ hudHidden: v }),
-  setMode: (m) => set({ mode: m }),
+  setMode: (m) => {
+    saveJSON(SETTINGS_KEY, { demoShift: get().demoShift, mode: m });
+    set({ mode: m });
+  },
   select: (s) => set({ selection: s, focusToken: get().focusToken + 1 }),
   requestFocus: () => set({ focusToken: get().focusToken + 1 }),
   requestResetView: () => set({ resetViewToken: get().resetViewToken + 1 }),
-  tick: (deltaSec) => {
-    const { playing, speed, hour } = get();
-    if (!playing) return;
-    const next = (hour + deltaSec * speed) % 24;
-    set({ hour: next });
-    // The old 13:00 "standup" now produces something useful (Fase 7): a
-    // daily report filed into Dokumen. Throttled in real time so cranking
-    // the sim speed can't spam the document manager.
+  syncClock: () => {
+    const { hour } = get();
+    const now = new Date();
+    const next = realHourNow(now);
+    set({ hour: next, nowTs: now.getTime() });
+    // The 13:00 "standup" produces something useful (Fase 7): a daily report
+    // filed into Dokumen. With the real clock this fires when local time
+    // actually crosses 13:00 while HQ is open; the throttle guards against
+    // tab sleep/wake jumps re-firing it.
     if (hour < 13 && next >= 13 && next > hour) {
-      const now = Date.now();
-      if (now - lastAutoReportAt > 10 * 60_000) {
-        lastAutoReportAt = now;
+      const t = Date.now();
+      if (t - lastAutoReportAt > 10 * 60_000) {
+        lastAutoReportAt = t;
         saveAutoDailyReport(get());
         get().pushEvent("Laporan harian otomatis dibuat → tersimpan di Dokumen", { kind: "system" });
       }
@@ -320,7 +334,7 @@ export function isMeeting(hour: number) {
 
 /**
  * Lighting/window factors after the HUD view-mode override
- * (Otomatis = follow sim clock, Terang = always day, Gelap = always night).
+ * (Otomatis = follow the real clock, Terang = always day, Gelap = always night).
  */
 export function effectiveDayFactors(hour: number, mode: ViewMode) {
   const f = dayFactors(hour);
