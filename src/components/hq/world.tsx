@@ -421,13 +421,17 @@ function useLiveUpdates(live: LiveTex) {
     }
     if (a.tTv > 2) {
       a.tTv = 0;
-      live.meetingScreen.redraw(hour, isOnShift(hour));
+      // wall screen: office-hours state in demo mode, "work exists" in real mode
+      const workday = st.demoShift
+        ? isOnShift(hour)
+        : st.jobs.some((j) => j.status === "running" || j.status === "queued");
+      live.meetingScreen.redraw(hour, workday);
     }
     if (a.tScreen > 0.5) {
       a.tScreen = 0;
-      const on = isOnShift(hour);
       const agent = AGENTS[a.screenIdx];
       const job = currentJobFor(agent.id, st.jobs);
+      const on = st.demoShift ? isOnShift(hour) : !!job;
       live.screens[a.screenIdx].redraw(
         performance.now() / 1000,
         on,

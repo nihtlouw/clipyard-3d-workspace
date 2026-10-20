@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Bot,
@@ -16,8 +16,6 @@ import {
   Maximize,
   Minimize,
   Moon,
-  Pause,
-  Play,
   RotateCcw,
   Sun,
   Volume2,
@@ -31,7 +29,7 @@ import { decideApproval } from "@/lib/hq-actions";
 import { agentActivity } from "@/lib/hq-profiles";
 import { AGENTS, COMPANY, VEHICLES, type VehicleInfo } from "@/lib/hq-data";
 import { currentJobFor } from "@/lib/hq-jobs";
-import { formatHour, formatShort, isMeeting, isOnShift, timeAgo, useHqStore, type ViewMode } from "@/lib/hq-store";
+import { formatShort, isMeeting, isOnShift, timeAgo, tzLabel, useHqStore, type ViewMode } from "@/lib/hq-store";
 import { useAmbience } from "@/lib/hq-ambience";
 import { cn } from "@/lib/utils";
 
@@ -442,73 +440,74 @@ function RightRail() {
   );
 }
 
-/* ---------------------------------- sim clock (compact, right) ---------------------------------- */
+/* ---------------------------------- real-time clock (compact, right) ---------------------------------- */
 
 function ClockPanel() {
   const hour = useHqStore((s) => s.hour);
-  const playing = useHqStore((s) => s.playing);
-  const speed = useHqStore((s) => s.speed);
-  const setHour = useHqStore((s) => s.setHour);
-  const togglePlay = useHqStore((s) => s.togglePlay);
-  const setSpeed = useHqStore((s) => s.setSpeed);
+  const nowTs = useHqStore((s) => s.nowTs);
   const demoShift = useHqStore((s) => s.demoShift);
   const setDemoShift = useHqStore((s) => s.setDemoShift);
   const on = isOnShift(hour);
-  const shiftP = Math.min(1, Math.max(0, (hour - 9) / 8));
+  const d = new Date(nowTs);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const hms = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  const dateLabel = d.toLocaleDateString("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const period =
+    hour >= 4 && hour < 11
+      ? "PAGI"
+      : hour >= 11 && hour < 15
+        ? "SIANG"
+        : hour >= 15 && hour < 18.5
+          ? "SORE"
+          : "MALAM";
 
   return (
     <div className="rounded-2xl border border-white/10 bg-[#11162a]/88 p-3 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.35)] backdrop-blur-2xl">
       <div className="flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.14em] text-hq-muted">
-          <Clock3 className="h-3.5 w-3.5" /> JAM SIM
+          <Clock3 className="h-3.5 w-3.5" /> WAKTU NYATA
         </span>
         {demoShift && <Chip color={on ? "#34d399" : "#a78bfa"}>{on ? "ON SHIFT" : "OFF SHIFT"}</Chip>}
       </div>
       <div className="mt-0.5 flex items-baseline gap-2">
         <span className="font-mono text-[26px] font-extrabold leading-none tracking-tight text-hq-text">
-          {formatHour(hour)}
+          {hms}
         </span>
-        <span className="text-[10px] font-semibold text-hq-muted">{COMPANY.shift}</span>
+        <span className="text-[10px] font-semibold text-hq-muted">{tzLabel(d)}</span>
       </div>
-      <input
-        type="range"
-        min={0}
-        max={24}
-        step={0.05}
-        value={hour}
-        onChange={(e) => setHour(Number(e.target.value))}
-        aria-label="Scrub jam sim"
-        className="hq-range mt-2 w-full"
-        style={{ "--hq-range-p": `${shiftP * 100}%` } as CSSProperties}
-      />
-      <div className="mt-2 flex items-center gap-1.5">
-        <button
-          onClick={togglePlay}
-          className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#f5b45e] text-[#20160a] transition-transform hover:scale-105"
-          aria-label={playing ? "Pause" : "Play"}
-        >
-          {playing ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-        </button>
-        {[0.5, 1, 3].map((s) => (
-          <button
-            key={s}
-            onClick={() => setSpeed(s)}
-            className={cn(
-              "h-7 rounded-lg px-2 text-[10.5px] font-bold transition-colors",
-              speed === s ? "bg-[#f5b45e] text-[#20160a]" : "bg-hq-line/60 text-hq-muted hover:text-hq-text",
-            )}
-          >
-            {s}×
-          </button>
-        ))}
-        <span className="ml-auto text-[9px] font-bold tracking-[0.1em] text-hq-muted">09:00 — 17:00</span>
+      <p className="mt-1 text-[10px] font-medium text-hq-muted">{dateLabel}</p>
+      {/* posisi dalam sehari: pita amber = jendela shift demo 09–17, titik = sekarang */}
+      <div
+        className="relative mt-2 h-1.5 rounded-full bg-white/10"
+        role="img"
+        aria-label={`Posisi waktu dalam sehari: ${hms}`}
+      >
+        {demoShift && (
+          <div
+            className="absolute inset-y-0 rounded-full bg-[#f5b45e]/35"
+            style={{ left: "37.5%", width: "33.333%" }}
+          />
+        )}
+        <div
+          className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#f5b45e] shadow ring-2 ring-[#11162a]"
+          style={{ left: `${(hour / 24) * 100}%` }}
+        />
+      </div>
+      <div className="mt-1.5 flex items-center justify-between text-[9px] font-bold tracking-[0.1em] text-hq-muted">
+        <span>{period}</span>
+        <span>{demoShift ? "SHIFT 09:00 — 17:00" : "MODE 24/7"}</span>
       </div>
       <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-white/8 pt-2.5">
         <div className="min-w-0">
           <p className="text-[10.5px] font-bold leading-tight text-hq-text">Mode Demo 9–5</p>
           <p className="mt-0.5 text-[9px] leading-snug text-hq-muted">
             {demoShift
-              ? "Robot mengikuti jam kantor (demo) — pekerjaan tetap jalan 24/7"
+              ? "Robot ikut jam kantor dari waktu nyata (demo) — kerja tetap 24/7"
               : "Robot mengikuti status kerja nyata tiap agen"}
           </p>
         </div>
@@ -533,7 +532,6 @@ function ClockPanel() {
     </div>
   );
 }
-
 /* ---------------------------------- approval inbox ---------------------------------- */
 
 const AMBER = "#fbbf24";

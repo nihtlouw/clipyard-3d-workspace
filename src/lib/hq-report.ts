@@ -1,6 +1,6 @@
 /**
  * Markdown studio report builder — shared by the /laporan page and the
- * automatic daily report (Fase 7: generated when the sim clock crosses
+ * automatic daily report (Fase 7: generated when the real clock crosses
  * 13:00, the old "standup" moment) which files itself into Dokumen.
  *
  * Takes a structural snapshot of the HQ store so this module never imports

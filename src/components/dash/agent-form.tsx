@@ -139,7 +139,7 @@ export function AgentForm({
         hint={
           workMode === "always"
             ? "Agen bekerja kapan pun ada tugas — AI tidak butuh jam kantor. Mode Demo 9–5 di panel jam hanya mengatur animasinya."
-            : "Di luar jendela ini agen beristirahat (tampil “Di luar jadwal”). Mengikuti jam sim studio."
+            : "Di luar jendela ini agen beristirahat (tampil “Di luar jadwal”). Mengikuti jam nyata (waktu lokal browser)."
         }
       >
         <div className="grid grid-cols-2 gap-2">

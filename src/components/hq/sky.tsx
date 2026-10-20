@@ -85,32 +85,46 @@ export function StudioLighting() {
 let lastShift: boolean | null = null;
 let lastMeeting: boolean | null = null;
 
-/** Advances the sim clock; logs shift/stand-up boundaries into the feed (demo mode only). */
+/**
+ * Syncs the store clock to real local time once a second; logs shift/stand-up
+ * boundaries into the feed (demo mode only — at real 09:00/13:00/17:00).
+ */
 export function ClockDriver() {
-  useFrame((_state, delta) => {
-    const store = useHqStore.getState();
-    store.tick(Math.min(delta, 0.1));
-    if (!store.demoShift) return; // real work mode: no office-hours narration
-    const hour = useHqStore.getState().hour;
-    const on = isOnShift(hour);
-    if (lastShift === null) lastShift = on;
-    else if (on !== lastShift) {
-      lastShift = on;
-      store.pushEvent(on ? "Shift dimulai — semua ke desk" : "Shift selesai — ke ruang rehat kaca", {
-        color: on ? "#047857" : "#6d28d9",
-        kind: "system",
-      });
-    }
-    const mtg = isMeeting(hour);
-    if (lastMeeting === null) lastMeeting = mtg;
-    else if (mtg !== lastMeeting) {
-      lastMeeting = mtg;
-      store.pushEvent(mtg ? "Standup harian dimulai (meeting room kaca)" : "Standup selesai — kembali ke desk", {
-        color: "#0ea5e9",
-        kind: "system",
-      });
-    }
-  });
+  useEffect(() => {
+    const step = () => {
+      const store = useHqStore.getState();
+      store.syncClock();
+      if (!store.demoShift) {
+        // real work mode: no office-hours narration; reset so re-enabling
+        // demo later doesn't fire a stale boundary event
+        lastShift = null;
+        lastMeeting = null;
+        return;
+      }
+      const hour = useHqStore.getState().hour;
+      const on = isOnShift(hour);
+      if (lastShift === null) lastShift = on;
+      else if (on !== lastShift) {
+        lastShift = on;
+        store.pushEvent(on ? "Shift dimulai — semua ke desk" : "Shift selesai — ke ruang rehat kaca", {
+          color: on ? "#047857" : "#6d28d9",
+          kind: "system",
+        });
+      }
+      const mtg = isMeeting(hour);
+      if (lastMeeting === null) lastMeeting = mtg;
+      else if (mtg !== lastMeeting) {
+        lastMeeting = mtg;
+        store.pushEvent(mtg ? "Standup harian dimulai (meeting room kaca)" : "Standup selesai — kembali ke desk", {
+          color: "#0ea5e9",
+          kind: "system",
+        });
+      }
+    };
+    step();
+    const id = window.setInterval(step, 1000);
+    return () => window.clearInterval(id);
+  }, []);
   return null;
 }
 

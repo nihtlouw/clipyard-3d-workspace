@@ -13,7 +13,7 @@ import { loadJSON, saveJSON } from "@/lib/hq-persist";
 /**
  * How an agent decides to work (Fase 7):
  *  - "always"   → 24/7 whenever a job exists (the sensible AI default)
- *  - "schedule" → only inside the configured hour window (sim clock)
+ *  - "schedule" → only inside the configured hour window (real clock)
  * The `enabled` flag remains the manual master switch on top of this.
  */
 export type WorkMode = "always" | "schedule";
@@ -38,7 +38,7 @@ export interface AgentProfile {
   autoApprove: boolean;
   /** 24/7 vs only inside the schedule window below (Fase 7) */
   workMode: WorkMode;
-  /** schedule window on the sim clock, whole hours 0–24 (start > end wraps midnight) */
+  /** schedule window on the real clock, whole hours 0–24 (start > end wraps midnight) */
   scheduleStart: number;
   scheduleEnd: number;
 }
@@ -195,7 +195,7 @@ export function fmtHourLabel(h: number): string {
   return `${String(Math.floor(((h % 24) + 24) % 24)).padStart(2, "0")}.00`;
 }
 
-/** True when `hour` (sim clock) falls inside the agent's schedule window. */
+/** True when `hour` (real clock) falls inside the agent's schedule window. */
 export function isInSchedule(p: AgentProfile, hour: number): boolean {
   if (p.workMode !== "schedule") return true;
   const s = p.scheduleStart;

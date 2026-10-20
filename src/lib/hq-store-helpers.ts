@@ -11,7 +11,21 @@ export function formatHour(hour: number) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-/** Sun/sky state for a simulated hour (0–24). */
+/** Real local time as fractional hours 0–24 (the browser's own clock). */
+export function realHourNow(d = new Date()) {
+  return d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600;
+}
+
+/** Indonesian zone label for the browser's UTC offset (WIB/WITA/WIT/UTC±n). */
+export function tzLabel(d = new Date()) {
+  const off = -d.getTimezoneOffset() / 60;
+  if (off === 7) return "WIB";
+  if (off === 8) return "WITA";
+  if (off === 9) return "WIT";
+  return `UTC${off >= 0 ? "+" : "-"}${Math.abs(off)}`;
+}
+
+/** Sun/sky state for an hour of day (0–24). */
 export function dayFactors(hour: number) {
   const theta = ((hour - 6) / 12) * Math.PI;
   const sunY = Math.sin(theta);

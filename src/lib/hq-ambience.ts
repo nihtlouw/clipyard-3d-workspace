@@ -70,17 +70,18 @@ function createAmbience(): Ambience {
   }
 
   function scheduleLoop() {
-    // keyboard chatter only while the crew is on shift
+    // keyboard chatter while the crew is around: 24/7 in real work mode,
+    // only during office hours when the 9–5 demo choreography is on
     keyTimer = window.setInterval(() => {
       if (!ctx) return;
-      const { hour } = useHqStore.getState();
-      if (isOnShift(hour) && Math.random() > 0.25) keyClick();
+      const { hour, demoShift } = useHqStore.getState();
+      if ((!demoShift || isOnShift(hour)) && Math.random() > 0.25) keyClick();
     }, 95);
     const pingLoop = () => {
       pingTimer = window.setInterval(() => {
         if (!ctx) return;
-        const { hour } = useHqStore.getState();
-        if (isOnShift(hour)) ping();
+        const { hour, demoShift } = useHqStore.getState();
+        if (!demoShift || isOnShift(hour)) ping();
       }, 9000);
     };
     pingLoop();
