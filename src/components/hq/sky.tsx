@@ -275,15 +275,15 @@ const _povLook = new THREE.Vector3();
 
 /**
  * First-person camera riding the selected robot's head. The perspective
- * camera (mounted by experience.tsx while povAgent is set) tracks the
+ * camera (mounted by experience.tsx while povTarget is set) tracks the
  * robot's live pose — walking bob included — and a pointer drag adds a
  * neck-limited look-around offset on top of the robot's own facing.
  */
 export function PovRig() {
-  const povAgent = useHqStore((s) => s.povAgent);
+  const povTarget = useHqStore((s) => s.povTarget);
   const gl = useThree((s) => s.gl);
   const look = useRef({ yaw: 0, pitch: 0, dragging: false, lx: 0, ly: 0 });
-  const smooth = useRef<{ pos: THREE.Vector3 | null; yaw: number }>({ pos: null, yaw: 0 });
+  const smooth = useRef<{ pos: THREE.Vector3 | null; yaw: number; pitch: number }>({ pos: null, yaw: 0, pitch: 0 });
   const visor = useRef<THREE.PointLight>(null);
 
   // fresh eyes on every robot switch
@@ -291,7 +291,7 @@ export function PovRig() {
     look.current.yaw = 0;
     look.current.pitch = 0;
     smooth.current.pos = null;
-  }, [povAgent]);
+  }, [povTarget]);
 
   useEffect(() => {
     const el = gl.domElement;
@@ -328,8 +328,8 @@ export function PovRig() {
   }, [gl]);
 
   useFrame((state, delta) => {
-    if (!povAgent) return;
-    const pose = robotPoses.get(povAgent);
+    if (!povTarget) return;
+    const pose = robotPoses.get(povTarget);
     if (!pose) return;
     const cam = state.camera;
     const d = Math.min(delta, 0.1);
@@ -342,15 +342,18 @@ export function PovRig() {
     if (!S.pos) {
       S.pos = _povPos.clone();
       S.yaw = pose.yaw;
+      S.pitch = pose.pitch ?? 0;
     } else {
       S.pos.lerp(_povPos, 1 - Math.exp(-d * 11));
       const dyaw = ((pose.yaw - S.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
       S.yaw += dyaw * (1 - Math.exp(-d * 9));
+      // the host's own look pitch (0 for crew; the seated boss nods at his monitors)
+      S.pitch += ((pose.pitch ?? 0) - S.pitch) * (1 - Math.exp(-d * 6));
     }
     cam.position.copy(S.pos);
 
     const yaw = S.yaw + look.current.yaw;
-    const pitch = look.current.pitch;
+    const pitch = THREE.MathUtils.clamp(S.pitch + look.current.pitch, -1.1, 1.1);
     const cp = Math.cos(pitch);
     _povLook.set(
       S.pos.x + Math.sin(yaw) * cp,

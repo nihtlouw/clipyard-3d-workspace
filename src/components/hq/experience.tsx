@@ -5,23 +5,25 @@ import * as THREE from "three";
 import { initFloorFeed } from "@/lib/hq-floor";
 import { useHqStore } from "@/lib/hq-store";
 import { Agents } from "./agents";
+import { BossAvatar } from "./boss";
 import { HqHud } from "./hud";
 import { CameraControls, CameraRig, ClockDriver, PovRig, START, StudioLighting, ResponsiveZoom } from "./sky";
 import { World } from "./world";
 
 function Scene() {
   const controls = useRef<any>(null);
-  const povAgent = useHqStore((s) => s.povAgent);
+  const povTarget = useHqStore((s) => s.povTarget);
   return (
     <>
       <StudioLighting />
       <ClockDriver />
       <World />
       <Agents />
+      <BossAvatar />
       {/* Fase 8: isometric diorama cam ⇄ first-person robot cam */}
-      <OrthographicCamera makeDefault={!povAgent} position={START.pos} zoom={START.zoom} near={1} far={160} />
-      <PerspectiveCamera makeDefault={!!povAgent} fov={62} near={0.05} far={140} position={[0, 1.4, 0]} />
-      {!povAgent ? (
+      <OrthographicCamera makeDefault={!povTarget} position={START.pos} zoom={START.zoom} near={1} far={160} />
+      <PerspectiveCamera makeDefault={!!povTarget} fov={62} near={0.05} far={140} position={[0, 1.4, 0]} />
+      {!povTarget ? (
         <>
           <CameraControls controls={controls} />
           <CameraRig controls={controls} />

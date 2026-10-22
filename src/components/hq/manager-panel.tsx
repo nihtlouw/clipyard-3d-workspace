@@ -35,7 +35,7 @@ export function ManagerPanel({ onClose }: { onClose: () => void }) {
   const demoShift = useHqStore((s) => s.demoShift);
   const connector = useHqStore((s) => s.connector);
   const floorSource = useHqStore((s) => s.floorSource);
-  const setPovAgent = useHqStore((s) => s.setPovAgent);
+  const setPovTarget = useHqStore((s) => s.setPovTarget);
 
   const enabledAgents = AGENTS.filter((a) => profiles[a.id]?.enabled !== false);
   const [assignAgent, setAssignAgent] = useState<AgentId>(enabledAgents[0]?.id ?? "akira");
@@ -208,15 +208,21 @@ export function ManagerPanel({ onClose }: { onClose: () => void }) {
         </button>
       </div>
 
-      {/* robot POV */}
+      {/* robot + boss POV (Fase 9) */}
       <SectionTitle>LIHAT DARI MATA ROBOT (POV)</SectionTitle>
-      <div className="mt-1.5 flex items-center gap-1.5">
+      <button
+        onClick={() => setPovTarget("manager")}
+        className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#f5b45e] px-2.5 py-2 text-[11px] font-bold text-[#20160a] transition hover:scale-[1.02]"
+      >
+        <Crown className="h-3.5 w-3.5" /> Duduk di kursi bos (POV)
+      </button>
+      <div className="mt-2 flex items-center gap-1.5">
         {AGENTS.map((a) => {
           const p = profiles[a.id];
           return (
             <button
               key={a.id}
-              onClick={() => setPovAgent(a.id)}
+              onClick={() => setPovTarget(a.id)}
               title={`POV ${p?.name ?? a.name}`}
               aria-label={`POV ${p?.name ?? a.name}`}
               className="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-extrabold text-white shadow transition hover:scale-110"

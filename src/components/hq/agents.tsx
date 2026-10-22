@@ -91,7 +91,7 @@ function Robot({ info, index }: { info: AgentInfo; index: number }) {
 
   // Fase 8: publish the live transform for the POV camera + focus rig
   const pose = useMemo<RobotPose>(
-    () => ({ x: info.desk[0], y: ROOM.SEAT_Y, z: info.desk[1], yaw: info.deskYaw, walking: false }),
+    () => ({ x: info.desk[0], y: ROOM.SEAT_Y, z: info.desk[1], yaw: info.deskYaw, pitch: 0, walking: false }),
     [info],
   );
   useEffect(() => {
@@ -220,7 +220,7 @@ function Robot({ info, index }: { info: AgentInfo; index: number }) {
 
     if (plateMat.current && plateSprite.current) {
       // never show our own nameplate while the camera rides this robot's head
-      plateSprite.current.visible = (labels || selected || hover) && st.povAgent !== info.id;
+      plateSprite.current.visible = (labels || selected || hover) && st.povTarget !== info.id;
       if (plateText.current !== statusText) {
         plateText.current = statusText;
         nameplate.redraw(statusText);
@@ -228,7 +228,7 @@ function Robot({ info, index }: { info: AgentInfo; index: number }) {
       const cam = state.camera as THREE.OrthographicCamera;
       // POV uses a perspective camera: keep plates modest so they don't
       // swallow the frame when the host robot walks past a colleague
-      const w = st.povAgent ? 0.95 : Math.min(2.7, (2.5 * 36) / (cam.zoom || 36));
+      const w = st.povTarget ? 0.95 : Math.min(2.7, (2.5 * 36) / (cam.zoom || 36));
       plateSprite.current.scale.set(w, w * 0.233, 1);
     }
   });

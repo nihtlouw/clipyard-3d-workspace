@@ -46,7 +46,7 @@ const KIND_LABEL: Record<VehicleInfo["kind"], string> = {
 export function HqHud() {
   const hudHidden = useHqStore((s) => s.hudHidden);
   const setHudHidden = useHqStore((s) => s.setHudHidden);
-  const povAgent = useHqStore((s) => s.povAgent);
+  const povTarget = useHqStore((s) => s.povTarget);
 
   // H toggles a clean, panel-free diorama view (nice for screenshots/OBS)
   useEffect(() => {
@@ -61,7 +61,7 @@ export function HqHud() {
   }, [setHudHidden]);
 
   // Fase 8: riding a robot's head — only the visor overlay stays
-  if (povAgent) return <PovOverlay />;
+  if (povTarget) return <PovOverlay />;
 
   if (hudHidden) {
     return (
@@ -293,7 +293,7 @@ function ViewControls() {
   const setAutoOrbit = useHqStore((s) => s.setAutoOrbit);
   const requestResetView = useHqStore((s) => s.requestResetView);
   const setHudHidden = useHqStore((s) => s.setHudHidden);
-  const setPovAgent = useHqStore((s) => s.setPovAgent);
+  const setPovTarget = useHqStore((s) => s.setPovTarget);
   const selection = useHqStore((s) => s.selection);
   const [full, setFull] = useState(false);
 
@@ -346,7 +346,15 @@ function ViewControls() {
           Auto-sway
         </button>
         <button
-          onClick={() => setPovAgent(selection?.kind === "agent" ? (selection.id as (typeof AGENTS)[number]["id"]) : AGENTS[0].id)}
+          onClick={() =>
+            setPovTarget(
+              selection?.kind === "manager"
+                ? "manager"
+                : selection?.kind === "agent"
+                  ? (selection.id as (typeof AGENTS)[number]["id"])
+                  : AGENTS[0].id,
+            )
+          }
           className={toggleCls(false)}
           title="Lihat kantor dari mata robot (klik robot dulu untuk memilih)"
         >
@@ -650,7 +658,7 @@ function AgentCards() {
   const hour = useHqStore((s) => s.hour);
   const demoShift = useHqStore((s) => s.demoShift);
   const select = useHqStore((s) => s.select);
-  const setPovAgent = useHqStore((s) => s.setPovAgent);
+  const setPovTarget = useHqStore((s) => s.setPovTarget);
   const on = isOnShift(hour);
   const meeting = isMeeting(hour);
 
@@ -719,13 +727,13 @@ function AgentCards() {
                 title={`POV ${p.name}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setPovAgent(a.id);
+                  setPovTarget(a.id);
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.stopPropagation();
                     e.preventDefault();
-                    setPovAgent(a.id);
+                    setPovTarget(a.id);
                   }
                 }}
                 className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-[#98a1c4] transition hover:bg-white/20 hover:text-white"

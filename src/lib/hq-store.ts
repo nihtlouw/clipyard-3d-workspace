@@ -25,6 +25,7 @@ import type {
   FloorSnapshot,
   FloorStats,
 } from "@/lib/hq-jobs";
+import type { PovId } from "@/lib/hq-robots";
 
 export type SelectableKind = "agent" | "vehicle" | "manager";
 export type ViewMode = "auto" | "day" | "night";
@@ -123,9 +124,10 @@ interface HqState {
   /** lighting override: follow the real clock, force day, or force night */
   mode: ViewMode;
   selection: Selection | null;
-  /** Fase 8: first-person camera rides this robot's head (null = isometric) */
-  povAgent: AgentId | null;
-  setPovAgent: (id: AgentId | null) => void;
+  /** Fase 8/9: first-person camera rides this head — a robot, or the boss
+      in his chair (null = isometric) */
+  povTarget: PovId | null;
+  setPovTarget: (id: PovId | null) => void;
   /** increments to request a camera focus (agents/vehicles + resets) */
   focusToken: number;
   /** increments to ask the camera to return to its starting corner */
@@ -197,14 +199,17 @@ export const useHqStore = create<HqState>((set, get) => ({
   // overrides and the choice is persisted
   mode: INITIAL_SETTINGS.mode,
   selection: null,
-  povAgent: null,
-  setPovAgent: (id) => {
-    const was = get().povAgent;
-    set({ povAgent: id, selection: id ? null : get().selection });
+  povTarget: null,
+  setPovTarget: (id) => {
+    const was = get().povTarget;
+    set({ povTarget: id, selection: id ? null : get().selection });
     if (id && !was) {
-      get().pushEvent(`POV aktif — melihat dari mata ${get().profiles[id]?.name ?? id.toUpperCase()}`, {
-        kind: "system",
-      });
+      get().pushEvent(
+        id === "manager"
+          ? "POV aktif — duduk di kursi manajer"
+          : `POV aktif — melihat dari mata ${get().profiles[id]?.name ?? id.toUpperCase()}`,
+        { kind: "system" },
+      );
     }
   },
   focusToken: 0,
