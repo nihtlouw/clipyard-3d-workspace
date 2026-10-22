@@ -698,6 +698,97 @@ export function createMeetingScreen() {
   return { tex, redraw };
 }
 
+export interface ManagerScreenStats {
+  clipsShipped: number;
+  renderQueue: number;
+  tokensOut: number;
+}
+
+/**
+ * The boss's desk monitors (Fase 8): a mini command deck — real clock,
+ * studio numbers, and an amber banner whenever agents wait for the
+ * manager's OK (the cue to click this PC and open the Manager Panel).
+ */
+export function createManagerScreen() {
+  const canvas = makeCanvas(512, 340);
+  const ctx = ctx2d(canvas);
+  const tex = toTexture(canvas);
+
+  const redraw = (hour: number, stats: ManagerScreenStats, approvals: number) => {
+    ctx.fillStyle = "#12172e";
+    ctx.fillRect(0, 0, 512, 340);
+    // header
+    ctx.fillStyle = "#f5b45e";
+    ctx.fillRect(0, 0, 512, 54);
+    ctx.fillStyle = "#20160a";
+    ctx.font = "800 27px system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("MANAJER", 22, 38);
+    ctx.font = "700 14px system-ui, sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText("COMMAND DECK", 490, 36);
+    ctx.textAlign = "left";
+
+    // real clock + date
+    const hh = String(Math.floor(hour) % 24).padStart(2, "0");
+    const mm = String(Math.floor((hour - Math.floor(hour)) * 60)).padStart(2, "0");
+    ctx.fillStyle = "#8a90b8";
+    ctx.font = "700 13px system-ui, sans-serif";
+    ctx.fillText("WAKTU NYATA", 24, 86);
+    ctx.fillStyle = "#f4f6ff";
+    ctx.font = "800 62px ui-monospace, monospace";
+    ctx.fillText(`${hh}:${mm}`, 22, 146);
+    ctx.fillStyle = "#8a90b8";
+    ctx.font = "600 15px system-ui, sans-serif";
+    ctx.fillText(
+      new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" }),
+      24,
+      172,
+    );
+
+    // studio numbers
+    const rows: Array<[string, number]> = [
+      ["KLIP TERKIRIM", stats.clipsShipped],
+      ["ANTREAN RENDER", stats.renderQueue],
+      ["TOKEN KELUAR", stats.tokensOut],
+    ];
+    rows.forEach(([label, value], i) => {
+      const y = 214 + i * 34;
+      ctx.fillStyle = "#8a90b8";
+      ctx.font = "700 14px system-ui, sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText(label, 24, y);
+      ctx.fillStyle = "#f4f6ff";
+      ctx.font = "800 21px system-ui, sans-serif";
+      ctx.textAlign = "right";
+      ctx.fillText(Math.round(value).toLocaleString("en-US"), 488, y);
+    });
+    ctx.textAlign = "left";
+
+    // approval banner — the "click me, Boss" signal
+    if (approvals > 0) {
+      ctx.fillStyle = "#fbbf24";
+      roundRect(ctx, 16, 290, 480, 38, 10);
+      ctx.fillStyle = "#20160a";
+      ctx.font = "800 18px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(`⚠ ${approvals} MENUNGGU OK DARIMU — KLIK PC INI`, 256, 315);
+    } else {
+      ctx.fillStyle = "#173528";
+      roundRect(ctx, 16, 290, 480, 38, 10);
+      ctx.fillStyle = "#34d399";
+      ctx.font = "800 16px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Semua beres — tidak ada yang menunggu", 256, 314);
+    }
+    ctx.textAlign = "left";
+    tex.needsUpdate = true;
+  };
+
+  redraw(realHourNow(), { clipsShipped: 0, renderQueue: 0, tokensOut: 0 }, 0);
+  return { tex, redraw };
+}
+
 /** Vending machine front: glowing snack/coffee rows. */
 export function createVendingFront() {
   const canvas = makeCanvas(192, 320);

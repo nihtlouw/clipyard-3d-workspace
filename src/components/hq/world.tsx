@@ -17,6 +17,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import {
   AGENTS,
   CREDENZA,
+  MANAGER,
   MEETING_SEATS,
   MEETING_TABLE,
   PODS,
@@ -35,10 +36,12 @@ import {
   createDeskLabel,
   createFloorWood,
   createGlowSprite,
+  createManagerScreen,
   createMeetingScreen,
   createRug,
   createScreen,
   createSkyline,
+  createVendingFront,
   createWhiteboard,
 } from "@/lib/hq-textures";
 
@@ -226,16 +229,16 @@ function useRoomGeometries() {
     ]);
 
     /* ---- slab (dark diorama base, like the reference floating box) ---- */
-    b.slab.push(boxAt(ROOM.W + 0.9, 0.55, ROOM.D + 0.9, 0, -0.28, 0));
+    b.slab.push(boxAt(ROOM.W + 0.9, 0.55, ROOM.D + 0.9, ROOM.CX, -0.28, 0));
 
     /* ---- north wall (solid, cream) ---- */
-    b.wall.push(boxAt(ROOM.W + 0.7, ROOM.H, 0.35, 0, ROOM.H / 2, -ROOM.D / 2 - 0.17));
-    b.wall.push(boxAt(ROOM.W + 0.7, 0.14, 0.52, 0, ROOM.H + 0.05, -ROOM.D / 2 - 0.17)); // cornice
-    b.white.push(boxAt(ROOM.W, 0.18, 0.05, 0, 0.09, -ROOM.D / 2 + 0.03)); // baseboard
+    b.wall.push(boxAt(ROOM.W + 0.7, ROOM.H, 0.35, ROOM.CX, ROOM.H / 2, -ROOM.D / 2 - 0.17));
+    b.wall.push(boxAt(ROOM.W + 0.7, 0.14, 0.52, ROOM.CX, ROOM.H + 0.05, -ROOM.D / 2 - 0.17)); // cornice
+    b.white.push(boxAt(ROOM.W, 0.18, 0.05, ROOM.CX, 0.09, -ROOM.D / 2 + 0.03)); // baseboard
 
     /* ---- west wall with 3 window openings ---- */
     const WIN = [-3.9, -0.7, 2.5]; // centers (z), each 2.4 wide, sill .95 → top 2.65
-    const wx = -ROOM.W / 2 - 0.17;
+    const wx = ROOM.X_MIN - 0.17;
     b.wall.push(boxAt(0.35, 0.95, ROOM.D + 0.7, wx, 0.475, 0)); // below sills
     b.wall.push(boxAt(0.35, ROOM.H - 2.65, ROOM.D + 0.7, wx, (ROOM.H + 2.65) / 2, 0)); // above
     b.wall.push(boxAt(0.52, 0.14, ROOM.D + 0.7, wx, ROOM.H + 0.05, 0)); // cornice
@@ -257,11 +260,14 @@ function useRoomGeometries() {
       b.white.push(boxAt(0.34, 0.06, 2.56, wx + 0.22, 0.97, cz)); // sill ledge
     }
 
-    /* ---- glass rooms (west line + partition + east + south) ---- */
+    /* ---- glass rooms (west line + partition + east wing + south) ---- */
     buildGlassWall(b, ROOM.GLASS_X, -6, ROOM.GLASS_X, 6, [ROOM.MEETING_DOOR_Z, ROOM.LOUNGE_DOOR_Z]);
-    buildGlassWall(b, ROOM.GLASS_X, ROOM.PARTITION_Z, 8, ROOM.PARTITION_Z);
-    buildGlassWall(b, 8, -6, 8, 6);
-    buildGlassWall(b, ROOM.GLASS_X, 6, 8, 6);
+    buildGlassWall(b, ROOM.GLASS_X, ROOM.PARTITION_Z, ROOM.X_MAX, ROOM.PARTITION_Z);
+    // Fase 8: manager office west wall (north segment only — the rest room
+    // flows east into the pantry corner where this line stays open)
+    buildGlassWall(b, ROOM.BOSS_X, -6, ROOM.BOSS_X, ROOM.PARTITION_Z, [ROOM.BOSS_DOOR_Z]);
+    buildGlassWall(b, ROOM.X_MAX, -6, ROOM.X_MAX, 6);
+    buildGlassWall(b, ROOM.GLASS_X, 6, ROOM.X_MAX, 6);
 
     /* ---- 6 agent workstations + spare hot-desk pod ---- */
     for (const a of AGENTS) buildWorkstation(b, { pos: a.desk, yaw: a.deskYaw });
@@ -299,6 +305,82 @@ function useRoomGeometries() {
     // lounge floor lamp pole (shade is a separate emissive mesh)
     b.black.push(cylAt(0.03, 0.03, 1.45, 8, 7.5, 0.72, 1.05), cylAt(0.16, 0.19, 0.04, 12, 7.5, 0.03, 1.05));
 
+    /* ---- Fase 8: Ruang Manajer (east wing, north) ---- */
+    {
+      const [dx, dz] = MANAGER.desk;
+      // executive desk: dark-wood top spanning z, twin pedestals, modesty panel
+      b.woodDark.push(boxAt(0.95, 0.07, 2.3, dx, 0.76, dz));
+      b.pedestal.push(boxAt(0.8, 0.72, 0.5, dx, 0.36, dz - 1.0), boxAt(0.8, 0.72, 0.5, dx, 0.36, dz + 1.0));
+      b.black.push(boxAt(0.04, 0.4, 2.2, dx - 0.45, 0.5, dz));
+      // desk props: paper sheet + mug
+      b.white.push(boxAt(0.3, 0.02, 0.42, dx - 0.15, 0.805, dz + 0.75, 0.2));
+      b.cream.push(cylAt(0.05, 0.045, 0.1, 10, dx - 0.2, 0.85, dz - 0.75));
+      // high-back executive chair (seat frame faces -x, toward the guests/team)
+      const [cx, cz] = MANAGER.chair;
+      const cy = MANAGER.chairYaw;
+      const CL = (lx: number, y: number, lz: number, w: number, h: number, d: number) =>
+        boxLocal(cx, cz, cy, lx, y, lz, w, h, d);
+      b.chair.push(CL(0, 0.48, 0, 0.56, 0.09, 0.54));
+      b.chair.push(CL(0, 0.85, -0.28, 0.54, 0.62, 0.08));
+      b.chair.push(CL(0, 1.28, -0.3, 0.34, 0.22, 0.07)); // headrest
+      b.black.push(CL(-0.32, 0.66, 0.02, 0.07, 0.05, 0.4), CL(0.32, 0.66, 0.02, 0.07, 0.05, 0.4));
+      b.black.push(cylAt(0.035, 0.035, 0.42, 8, cx, 0.24, cz));
+      for (let k = 0; k < 5; k++) {
+        const a = cy + (k / 5) * Math.PI * 2 + 0.4;
+        b.black.push(boxAt(0.32, 0.03, 0.05, cx + Math.sin(a) * 0.16, 0.05, cz + Math.cos(a) * 0.16, -a));
+      }
+      // two guest chairs facing the desk
+      buildMeetingChair(b, { pos: [dx - 1.0, dz - 0.7], yaw: Math.PI / 2 });
+      buildMeetingChair(b, { pos: [dx - 1.0, dz + 0.7], yaw: Math.PI / 2 });
+      // credenza under the north wall + books + trophy
+      b.white.push(boxAt(2.6, 0.58, 0.5, 10.6, 0.29, -5.68));
+      b.wood.push(boxAt(2.7, 0.05, 0.56, 10.6, 0.61, -5.68));
+      const bookH = [0.3, 0.36, 0.28, 0.34, 0.3, 0.38];
+      const bookBuckets = [b.sage, b.terra, b.cream, b.sage, b.cream, b.terra];
+      bookH.forEach((h, i) => bookBuckets[i].push(boxAt(0.09, h, 0.24, 9.62 + i * 0.115, 0.64 + h / 2, -5.68)));
+      b.terra.push(cylAt(0.09, 0.14, 0.3, 10, 11.5, 0.79, -5.68));
+      b.cream.push(cylAt(0.05, 0.05, 0.08, 8, 11.5, 0.98, -5.68));
+      // bookshelf against the west glass
+      b.woodDark.push(boxAt(0.32, 2.0, 0.05, 8.32, 1.0, -5.35), boxAt(0.32, 2.0, 0.05, 8.32, 1.0, -3.75));
+      b.black.push(boxAt(0.04, 2.0, 1.65, 8.18, 1.0, -4.55));
+      for (const sy of [0.25, 0.85, 1.45, 1.98]) {
+        b.woodDark.push(boxAt(0.32, 0.05, 1.65, 8.32, sy, -4.55));
+      }
+      [0.25, 0.85, 1.45].forEach((sy, row) => {
+        for (let i = 0; i < 5; i++) {
+          const bk = [b.sage, b.terra, b.cream][(i + row) % 3];
+          bk.push(boxAt(0.2, 0.3, 0.09, 8.32, sy + 0.18, -5.12 + i * 0.29, i === 4 ? 0.18 : 0));
+        }
+      });
+      // two-seat sofa along the south glass + coffee table
+      b.sofa.push(boxAt(1.9, 0.5, 0.9, 10.3, 0.4, -1.05));
+      b.sofa.push(boxAt(1.9, 0.85, 0.24, 10.3, 0.78, -0.68));
+      b.sofa.push(boxAt(0.24, 0.62, 0.9, 9.28, 0.66, -1.05), boxAt(0.24, 0.62, 0.9, 11.32, 0.66, -1.05));
+      b.sofaLight.push(boxAt(0.85, 0.16, 0.75, 9.85, 0.66, -1.1), boxAt(0.85, 0.16, 0.75, 10.75, 0.66, -1.1));
+      b.wood.push(boxAt(1.1, 0.05, 0.55, 10.3, 0.34, -1.95));
+      b.black.push(boxAt(0.06, 0.32, 0.45, 9.85, 0.16, -1.95), boxAt(0.06, 0.32, 0.45, 10.75, 0.16, -1.95));
+      // floor lamp pole in the NE corner (shade/light live in NightLights)
+      b.black.push(cylAt(0.03, 0.03, 1.45, 8, 12.8, 0.72, -5.35), cylAt(0.16, 0.19, 0.04, 12, 12.8, 0.03, -5.35));
+    }
+
+    /* ---- Fase 8: pantry corner (rest room flows east) ---- */
+    {
+      // counter along the east glass + kettle/cups/microwave/fruit bowl
+      b.white.push(boxAt(0.6, 0.9, 2.4, 12.82, 0.45, 4.5));
+      b.wood.push(boxAt(0.72, 0.05, 2.52, 12.82, 0.93, 4.5));
+      b.black.push(cylAt(0.09, 0.11, 0.22, 10, 12.82, 1.06, 3.85));
+      b.cream.push(cylAt(0.045, 0.04, 0.09, 8, 12.7, 1.0, 4.32), cylAt(0.045, 0.04, 0.09, 8, 12.92, 1.0, 4.48));
+      b.black.push(boxAt(0.5, 0.32, 0.62, 12.82, 1.11, 5.25));
+      b.terra.push(cylAt(0.16, 0.1, 0.09, 12, 12.82, 1.0, 4.78));
+      // vending machine body (glowing front is a separate textured plane)
+      b.black.push(boxAt(0.72, 1.9, 1.05, 12.78, 0.95, 1.6));
+      // high table + two stools
+      b.wood.push(cylAt(0.48, 0.48, 0.05, 18, 10.7, 1.03, 4.7));
+      b.black.push(cylAt(0.04, 0.04, 1.0, 8, 10.7, 0.5, 4.7), cylAt(0.3, 0.32, 0.04, 14, 10.7, 0.02, 4.7));
+      b.chair.push(cylAt(0.21, 0.21, 0.06, 12, 10.1, 0.64, 4.2), cylAt(0.21, 0.21, 0.06, 12, 11.3, 0.64, 5.2));
+      b.black.push(cylAt(0.03, 0.03, 0.62, 8, 10.1, 0.31, 4.2), cylAt(0.03, 0.03, 0.62, 8, 11.3, 0.31, 5.2));
+    }
+
     /* ---- whiteboard on the north wall (open area) ---- */
     b.black.push(boxAt(3.45, 1.95, 0.08, -1.7, 1.98, -5.92));
 
@@ -335,6 +417,9 @@ function useRoomGeometries() {
     plantAt(7.45, -5.35, 0.28, 0.4, true); // meeting corner
     plantAt(7.45, 5.4, 0.3, 0.42, false); // rest corner
     plantAt(-1.9, -1.6, 0.24, 0.34, false); // between pods
+    plantAt(12.75, -0.95, 0.3, 0.42, true); // manager office SE corner
+    plantAt(8.6, -0.85, 0.26, 0.38, false); // manager office, by the door
+    plantAt(12.7, 0.1, 0.28, 0.4, true); // pantry corner by the vending machine
     // tiny sill pots
     b.terra.push(cylAt(0.11, 0.09, 0.16, 10, -7.95, 1.08, -3.9));
     b.potW.push(cylAt(0.11, 0.09, 0.16, 10, -7.95, 1.08, 2.5));
@@ -383,6 +468,7 @@ interface LiveTex {
   skyline: ReturnType<typeof createSkyline>;
   whiteboard: ReturnType<typeof createWhiteboard>;
   meetingScreen: ReturnType<typeof createMeetingScreen>;
+  managerScreen: ReturnType<typeof createManagerScreen>;
   screens: ReturnType<typeof createScreen>[];
 }
 
@@ -426,6 +512,15 @@ function useLiveUpdates(live: LiveTex) {
         ? isOnShift(hour)
         : st.jobs.some((j) => j.status === "running" || j.status === "queued");
       live.meetingScreen.redraw(hour, workday);
+      live.managerScreen.redraw(
+        hour,
+        {
+          clipsShipped: st.stats.clipsShipped,
+          renderQueue: st.stats.renderQueue,
+          tokensOut: st.stats.tokensOut ?? 0,
+        },
+        st.approvals.length,
+      );
     }
     if (a.tScreen > 0.5) {
       a.tScreen = 0;
@@ -501,6 +596,78 @@ function DeskProps({ live }: { live: LiveTex }) {
   );
 }
 
+/* ---------------------------------- manager desk (clickable PC) ---------------------------------- */
+
+/**
+ * The boss's dual monitors (Fase 8) — live command-deck screens by day,
+ * amber "N menunggu OK" banner when agents need the manager. The whole
+ * desk area is the click target that opens the Manager Panel.
+ */
+function ManagerDesk({ live }: { live: LiveTex }) {
+  const select = useHqStore((s) => s.select);
+  const selected = useHqStore((s) => s.selection?.kind === "manager");
+  const [dx, dz] = MANAGER.desk;
+
+  const pick = (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation();
+    select({ kind: "manager", id: "manager" });
+  };
+  const hover = (e: ThreeEvent<PointerEvent>, on: boolean) => {
+    e.stopPropagation();
+    document.body.style.cursor = on ? "pointer" : "auto";
+  };
+
+  return (
+    <group onClick={pick} onPointerOver={(e) => hover(e, true)} onPointerOut={(e) => hover(e, false)}>
+      {selected && (
+        <mesh position={[dx + 0.3, 0.02, dz]} rotation-x={-Math.PI / 2}>
+          <ringGeometry args={[1.4, 1.56, 44]} />
+          <meshBasicMaterial color="#f5b45e" transparent opacity={0.85} depthWrite={false} toneMapped={false} />
+        </mesh>
+      )}
+      {/* dual monitors, angled in toward the executive chair */}
+      {(
+        [
+          [-0.44, 0.26],
+          [0.44, -0.26],
+        ] as const
+      ).map(([zo, ry], i) => (
+        <group key={i} position={[dx + 0.28, 0, dz + zo]} rotation-y={Math.PI / 2 + ry}>
+          <mesh position={[0, 0.81, 0]} castShadow>
+            <boxGeometry args={[0.36, 0.03, 0.24]} />
+            <meshStandardMaterial color="#1b1e28" roughness={0.5} metalness={0.3} />
+          </mesh>
+          <mesh position={[0, 0.93, -0.02]}>
+            <boxGeometry args={[0.07, 0.24, 0.07]} />
+            <meshStandardMaterial color="#1b1e28" roughness={0.5} metalness={0.3} />
+          </mesh>
+          <mesh position={[0, 1.13, 0]} castShadow>
+            <boxGeometry args={[0.86, 0.54, 0.05]} />
+            <meshStandardMaterial color="#1b1e28" roughness={0.5} metalness={0.3} />
+          </mesh>
+          <mesh position={[0, 1.13, 0.028]}>
+            <planeGeometry args={[0.78, 0.46]} />
+            <meshBasicMaterial map={live.managerScreen.tex} toneMapped={false} />
+          </mesh>
+        </group>
+      ))}
+      {/* keyboard + mouse on the manager's side */}
+      <mesh position={[dx + 0.58, 0.81, dz]} castShadow>
+        <boxGeometry args={[0.2, 0.025, 0.54]} />
+        <meshStandardMaterial color="#2b2f3d" roughness={0.8} />
+      </mesh>
+      <mesh position={[dx + 0.58, 0.815, dz + 0.48]} scale={[1, 0.55, 1.35]}>
+        <sphereGeometry args={[0.045, 10, 8]} />
+        <meshStandardMaterial color="#2b2f3d" roughness={0.7} />
+      </mesh>
+      {/* generous invisible hit-box over desk + monitors */}
+      <mesh position={[dx + 0.25, 0.85, dz]} visible={false}>
+        <boxGeometry args={[1.8, 1.7, 2.7]} />
+      </mesh>
+    </group>
+  );
+}
+
 /* ---------------------------------- foliage ---------------------------------- */
 
 const PLANTS: Array<{ p: [number, number, number]; s: number; c: string }> = [
@@ -513,6 +680,9 @@ const PLANTS: Array<{ p: [number, number, number]; s: number; c: string }> = [
   { p: [7.2, 1.18, -5.15], s: 0.26, c: "#527f4c" },
   { p: [7.45, 0.95, 5.4], s: 0.4, c: "#527f4c" },
   { p: [-1.9, 0.72, -1.6], s: 0.3, c: "#63975c" },
+  { p: [12.75, 0.95, -0.95], s: 0.4, c: "#63975c" },
+  { p: [8.6, 0.85, -0.85], s: 0.34, c: "#527f4c" },
+  { p: [12.7, 0.9, 0.1], s: 0.36, c: "#63975c" },
   { p: [-7.95, 1.28, -3.9], s: 0.15, c: "#63975c" },
   { p: [-7.95, 1.28, 2.5], s: 0.15, c: "#527f4c" },
 ];
@@ -555,9 +725,24 @@ function LoungeSoft() {
         <sphereGeometry args={[0.54, 16, 12]} />
         <meshStandardMaterial color="#7d9474" roughness={0.95} />
       </mesh>
-      <mesh position={[4.5, 0.27, 5.0]} scale={[1, 0.55, 1]} castShadow receiveShadow>
+      {/* BOLT's beanbag moved east into the Fase 8 extension */}
+      <mesh position={[8.6, 0.27, 5.5]} scale={[1, 0.55, 1]} castShadow receiveShadow>
         <sphereGeometry args={[0.54, 16, 12]} />
         <meshStandardMaterial color="#b96f4e" roughness={0.95} />
+      </mesh>
+      {/* spare beanbag by the pantry high table */}
+      <mesh position={[11.3, 0.27, 2.6]} scale={[1, 0.55, 1]} castShadow receiveShadow>
+        <sphereGeometry args={[0.54, 16, 12]} />
+        <meshStandardMaterial color="#bfa05a" roughness={0.95} />
+      </mesh>
+      {/* extension rug + manager office rug */}
+      <mesh position={[10.5, 0.015, 4.35]} rotation-x={-Math.PI / 2} renderOrder={1} receiveShadow>
+        <circleGeometry args={[1.7, 36]} />
+        <meshStandardMaterial map={rug} transparent opacity={0.92} roughness={1} depthWrite={false} />
+      </mesh>
+      <mesh position={[11.45, 0.015, -3.2]} rotation-x={-Math.PI / 2} renderOrder={1} receiveShadow>
+        <circleGeometry args={[1.9, 36]} />
+        <meshStandardMaterial map={rug} transparent opacity={0.92} roughness={1} depthWrite={false} />
       </mesh>
     </group>
   );
@@ -623,6 +808,7 @@ function NightLights({ lampPos }: { lampPos: readonly [number, number] }) {
   const meeting = useRef<THREE.PointLight>(null);
   const lounge = useRef<THREE.PointLight>(null);
   const open = useRef<THREE.PointLight>(null);
+  const boss = useRef<THREE.PointLight>(null);
   const dayShade = useMemo(() => new THREE.Color("#e9e1cd"), []);
   const nightShade = useMemo(() => new THREE.Color("#ffcf96"), []);
 
@@ -634,6 +820,7 @@ function NightLights({ lampPos }: { lampPos: readonly [number, number] }) {
     if (meeting.current) meeting.current.intensity = 9 * warm;
     if (lounge.current) lounge.current.intensity = 8 * warm;
     if (open.current) open.current.intensity = 8.5 * (night * 0.9);
+    if (boss.current) boss.current.intensity = 8 * warm;
     poolMat.opacity = 0.2 * night;
     bulbMat.opacity = 0.6 * warm;
     shadeMat.color.copy(dayShade).lerp(nightShade, warm);
@@ -651,16 +838,21 @@ function NightLights({ lampPos }: { lampPos: readonly [number, number] }) {
       <mesh position={[7.5, 1.58, 1.05]} material={shadeMat}>
         <cylinderGeometry args={[0.15, 0.23, 0.28, 14, 1, true]} />
       </mesh>
+      <mesh position={[12.8, 1.58, -5.35]} material={shadeMat}>
+        <cylinderGeometry args={[0.15, 0.23, 0.28, 14, 1, true]} />
+      </mesh>
 
       <pointLight ref={apex} position={[lampPos[0] + 0.15, 1.75, lampPos[1] + 0.15]} color="#ffb45e" distance={11} decay={1.9} />
       <pointLight ref={meeting} position={[5.2, 2.4, -3.6]} color="#ffc98a" distance={10} decay={1.9} />
       <pointLight ref={lounge} position={[7.2, 1.7, 1.3]} color="#ffb45e" distance={9} decay={1.9} />
       <pointLight ref={open} position={[-3.2, 2.7, 0.2]} color="#ffd2a0" distance={13} decay={1.9} />
+      <pointLight ref={boss} position={[12.3, 1.8, -4.7]} color="#ffb45e" distance={9} decay={1.9} />
 
       {/* halos */}
       <sprite position={[lampPos[0], 1.68, lampPos[1]]} material={bulbMat} scale={[1.5, 1.5, 1]} renderOrder={4} />
       <sprite position={[6.7, 0.86, -5.62]} material={bulbMat} scale={[0.8, 0.8, 1]} renderOrder={4} />
       <sprite position={[7.5, 1.58, 1.05]} material={bulbMat} scale={[1.2, 1.2, 1]} renderOrder={4} />
+      <sprite position={[12.8, 1.58, -5.35]} material={bulbMat} scale={[1.2, 1.2, 1]} renderOrder={4} />
 
       {/* warm pools on the floor */}
       {([
@@ -668,6 +860,7 @@ function NightLights({ lampPos }: { lampPos: readonly [number, number] }) {
         [5.2, -3.6, 4.6],
         [7.1, 1.5, 3.6],
         [-3.2, 0.2, 6.2],
+        [11.6, -3.4, 5.2],
       ] as const).map(([x, z, s], i) => (
         <mesh key={i} rotation-x={-Math.PI / 2} position={[x, 0.03, z]} material={poolMat} renderOrder={2}>
           <planeGeometry args={[s, s]} />
@@ -863,6 +1056,10 @@ function ContactShadows({ tex }: { tex: THREE.Texture }) {
     [7.3, 2.9, 1.8, 3.2],
     [CREDENZA.x + 0.3, CREDENZA.z, 1.4, 4.2],
     [5.0, -5.6, 3.4, 1.1],
+    [11.5, -3.2, 2.4, 3.2], // manager desk
+    [10.3, -1.05, 2.6, 1.8], // manager sofa
+    [12.82, 4.5, 1.3, 3.0], // pantry counter
+    [10.7, 4.7, 1.7, 1.7], // pantry high table
   ];
   const mat = useMemo(
     () => new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.85, depthWrite: false }),
@@ -884,15 +1081,20 @@ function ContactShadows({ tex }: { tex: THREE.Texture }) {
 function WallSigns() {
   const logo = useMemo(() => createDarkSign("CLIPYARD", "#f59e0b", 420, 96), []);
   const garage = useMemo(() => createDarkSign("CREW GARAGE", "#22d3ee", 420, 96), []);
+  const manager = useMemo(() => createDarkSign("RUANG MANAJER", "#f5b45e", 560, 110), []);
   return (
     <group>
       <mesh position={[-5.7, 2.6, -ROOM.D / 2 + 0.04]}>
         <planeGeometry args={[2.3, 0.53]} />
         <meshBasicMaterial map={logo} toneMapped={false} transparent />
       </mesh>
-      <mesh position={[-ROOM.W / 2 + 0.04, 1.32, CREDENZA.z]} rotation-y={Math.PI / 2}>
+      <mesh position={[ROOM.X_MIN + 0.04, 1.32, CREDENZA.z]} rotation-y={Math.PI / 2}>
         <planeGeometry args={[1.7, 0.39]} />
         <meshBasicMaterial map={garage} toneMapped={false} transparent />
+      </mesh>
+      <mesh position={[11.2, 2.62, -ROOM.D / 2 + 0.04]}>
+        <planeGeometry args={[2.55, 0.5]} />
+        <meshBasicMaterial map={manager} toneMapped={false} transparent />
       </mesh>
     </group>
   );
@@ -908,13 +1110,19 @@ const BUCKET_ORDER: Array<keyof RoomMats> = [
 export function World() {
   const { geos, windows, lampPos } = useRoomGeometries();
   const mats = useRoomMaterials();
-  const floorTex = useMemo(() => createFloorWood(), []);
+  const floorTex = useMemo(() => {
+    const t = createFloorWood();
+    t.repeat.set(ROOM.W / 3.2, ROOM.D / 3.53); // keep plank scale on the bigger floor
+    return t;
+  }, []);
   const blobTex = useMemo(() => createBlobShadow(), []);
+  const vendingTex = useMemo(() => createVendingFront(), []);
   const live = useMemo<LiveTex>(
     () => ({
       skyline: createSkyline(),
       whiteboard: createWhiteboard(),
       meetingScreen: createMeetingScreen(),
+      managerScreen: createManagerScreen(),
       screens: AGENTS.map((a) => createScreen(a)),
     }),
     [],
@@ -924,13 +1132,13 @@ export function World() {
   return (
     <group>
       {/* soft ground shadow under the floating diorama */}
-      <mesh rotation-x={-Math.PI / 2} position={[0.6, -0.62, 0.6]}>
+      <mesh rotation-x={-Math.PI / 2} position={[ROOM.CX + 0.6, -0.62, 0.6]}>
         <planeGeometry args={[ROOM.W + 7, ROOM.D + 7]} />
         <meshBasicMaterial map={blobTex} transparent opacity={0.65} depthWrite={false} />
       </mesh>
 
       {/* warm oak floor */}
-      <mesh rotation-x={-Math.PI / 2} receiveShadow>
+      <mesh rotation-x={-Math.PI / 2} position={[ROOM.CX, 0, 0]} receiveShadow>
         <planeGeometry args={[ROOM.W, ROOM.D]} />
         <meshStandardMaterial map={floorTex} roughness={0.78} />
       </mesh>
@@ -943,7 +1151,7 @@ export function World() {
 
       {/* west window skyline views */}
       {windows.map((cz) => (
-        <mesh key={cz} position={[-ROOM.W / 2 - 0.42, 1.8, cz]} rotation-y={Math.PI / 2}>
+        <mesh key={cz} position={[ROOM.X_MIN - 0.42, 1.8, cz]} rotation-y={Math.PI / 2}>
           <planeGeometry args={[2.4, 1.7]} />
           <meshBasicMaterial map={live.skyline.tex} toneMapped={false} />
         </mesh>
@@ -962,6 +1170,14 @@ export function World() {
       </mesh>
 
       <DeskProps live={live} />
+      <ManagerDesk live={live} />
+
+      {/* pantry vending machine front (glowing snack rows) */}
+      <mesh position={[12.41, 0.98, 1.6]} rotation-y={-Math.PI / 2}>
+        <planeGeometry args={[0.95, 1.7]} />
+        <meshBasicMaterial map={vendingTex} toneMapped={false} />
+      </mesh>
+
       <Foliage />
       <LoungeSoft />
       <WallClock />
