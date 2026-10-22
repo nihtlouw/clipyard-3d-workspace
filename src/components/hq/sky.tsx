@@ -12,7 +12,8 @@ import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import { AGENTS, MEETING_SEATS, VEHICLES } from "@/lib/hq-data";
+import { AGENTS, MANAGER, MEETING_SEATS, VEHICLES } from "@/lib/hq-data";
+import { robotPoses } from "@/lib/hq-robots";
 import { effectiveDayFactors, isMeeting, isOnShift, useHqStore } from "@/lib/hq-store";
 
 const KEY_DAY = new THREE.Color("#fff1dc");
@@ -63,12 +64,12 @@ export function StudioLighting() {
         intensity={2.2}
         castShadow
         shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-14}
-        shadow-camera-right={14}
-        shadow-camera-top={14}
-        shadow-camera-bottom={-14}
+        shadow-camera-left={-18}
+        shadow-camera-right={18}
+        shadow-camera-top={18}
+        shadow-camera-bottom={-18}
         shadow-camera-near={2}
-        shadow-camera-far={45}
+        shadow-camera-far={55}
         shadow-bias={-0.0003}
         shadow-normalBias={0.03}
       />
@@ -131,9 +132,9 @@ export function ClockDriver() {
 /* ---------------------------------- camera ---------------------------------- */
 
 export const START = {
-  pos: [16.5, 14, 16.5] as [number, number, number],
-  target: [0, 0.7, 0] as [number, number, number],
-  zoom: 37,
+  pos: [18.9, 14, 16.5] as [number, number, number],
+  target: [2.4, 0.7, 0] as [number, number, number],
+  zoom: 34,
 };
 
 const _target = new THREE.Vector3();
@@ -173,7 +174,11 @@ export function CameraRig({ controls }: { controls: React.RefObject<any> }) {
       const idx = AGENTS.findIndex((x) => x.id === sel.id);
       if (idx < 0) return;
       const a = AGENTS[idx];
-      if (isOnShift(st.hour) && isMeeting(st.hour)) {
+      // Fase 8: focus the robot's actual live position when available
+      const pose = robotPoses.get(a.id);
+      if (pose) {
+        tx = pose.x; tz = pose.z;
+      } else if (isOnShift(st.hour) && isMeeting(st.hour)) {
         tx = MEETING_SEATS[idx].pos[0]; tz = MEETING_SEATS[idx].pos[1];
       } else if (isOnShift(st.hour)) {
         tx = a.desk[0]; tz = a.desk[1];
@@ -181,6 +186,8 @@ export function CameraRig({ controls }: { controls: React.RefObject<any> }) {
         tx = a.lounge[0]; tz = a.lounge[1];
       }
       ty = 1.1;
+    } else if (sel.kind === "manager") {
+      tx = MANAGER.focus[0]; ty = 1.1; tz = MANAGER.focus[1];
     } else {
       const v = VEHICLES.find((x) => x.id === sel.id);
       if (!v) return;
@@ -221,7 +228,7 @@ export function CameraControls({ controls }: { controls: React.RefObject<any> })
       dampingFactor={0.08}
       enablePan={false}
       target={START.target}
-      minZoom={15}
+      minZoom={11}
       maxZoom={90}
       minAzimuthAngle={0.12}
       maxAzimuthAngle={1.45}
@@ -238,7 +245,7 @@ export function ResponsiveZoom() {
   const lastFit = useRef(0);
   const lastReset = useRef(-1);
 
-  const fit = Math.max(14, Math.min(58, size.width / 26.2, size.height / 18.4));
+  const fit = Math.max(12, Math.min(52, size.width / 33.5, size.height / 21.8));
 
   useFrame(() => {
     // "Sudut awal" restores the saved camera (mount-time zoom) via controls.reset();
@@ -259,4 +266,100 @@ export function ResponsiveZoom() {
     }
   });
   return null;
+}
+
+/* ---------------------------------- robot POV (Fase 8) ---------------------------------- */
+
+const _povPos = new THREE.Vector3();
+const _povLook = new THREE.Vector3();
+
+/**
+ * First-person camera riding the selected robot's head. The perspective
+ * camera (mounted by experience.tsx while povAgent is set) tracks the
+ * robot's live pose — walking bob included — and a pointer drag adds a
+ * neck-limited look-around offset on top of the robot's own facing.
+ */
+export function PovRig() {
+  const povAgent = useHqStore((s) => s.povAgent);
+  const gl = useThree((s) => s.gl);
+  const look = useRef({ yaw: 0, pitch: 0, dragging: false, lx: 0, ly: 0 });
+  const smooth = useRef<{ pos: THREE.Vector3 | null; yaw: number }>({ pos: null, yaw: 0 });
+  const visor = useRef<THREE.PointLight>(null);
+
+  // fresh eyes on every robot switch
+  useEffect(() => {
+    look.current.yaw = 0;
+    look.current.pitch = 0;
+    smooth.current.pos = null;
+  }, [povAgent]);
+
+  useEffect(() => {
+    const el = gl.domElement;
+    const L = look.current;
+    const down = (e: PointerEvent) => {
+      L.dragging = true;
+      L.lx = e.clientX;
+      L.ly = e.clientY;
+      el.setPointerCapture(e.pointerId);
+    };
+    const move = (e: PointerEvent) => {
+      if (!L.dragging) return;
+      const dx = e.clientX - L.lx;
+      const dy = e.clientY - L.ly;
+      L.lx = e.clientX;
+      L.ly = e.clientY;
+      // +yaw turns left in this scene's convention, so dragging right subtracts
+      L.yaw = THREE.MathUtils.clamp(L.yaw - dx * 0.0045, -2.4, 2.4);
+      L.pitch = THREE.MathUtils.clamp(L.pitch - dy * 0.0045, -0.95, 0.95);
+    };
+    const up = () => {
+      L.dragging = false;
+    };
+    el.addEventListener("pointerdown", down);
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+    return () => {
+      el.removeEventListener("pointerdown", down);
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      el.removeEventListener("pointercancel", up);
+    };
+  }, [gl]);
+
+  useFrame((state, delta) => {
+    if (!povAgent) return;
+    const pose = robotPoses.get(povAgent);
+    if (!pose) return;
+    const cam = state.camera;
+    const d = Math.min(delta, 0.1);
+    const S = smooth.current;
+
+    // eye point: head center pushed just in front of the visor
+    const fx = Math.sin(pose.yaw);
+    const fz = Math.cos(pose.yaw);
+    _povPos.set(pose.x + fx * 0.3, pose.y + 1.02, pose.z + fz * 0.3);
+    if (!S.pos) {
+      S.pos = _povPos.clone();
+      S.yaw = pose.yaw;
+    } else {
+      S.pos.lerp(_povPos, 1 - Math.exp(-d * 11));
+      const dyaw = ((pose.yaw - S.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      S.yaw += dyaw * (1 - Math.exp(-d * 9));
+    }
+    cam.position.copy(S.pos);
+
+    const yaw = S.yaw + look.current.yaw;
+    const pitch = look.current.pitch;
+    const cp = Math.cos(pitch);
+    _povLook.set(
+      S.pos.x + Math.sin(yaw) * cp,
+      S.pos.y + Math.sin(pitch),
+      S.pos.z + Math.cos(yaw) * cp,
+    );
+    cam.lookAt(_povLook);
+    // soft "visor light" so the robot's desk/screen stay readable at dusk
+    if (visor.current) visor.current.position.set(S.pos.x, S.pos.y + 0.15, S.pos.z);
+  });
+  return <pointLight ref={visor} intensity={1.5} distance={5.5} decay={1.8} color="#dfe8ff" />;
 }

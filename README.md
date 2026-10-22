@@ -357,3 +357,23 @@ pekerjaan, bukan jam kantor). Default pencahayaan diubah dari paksa "Gelap"
 menjadi "Otomatis" (ikut jam nyata) dan pilihan pencahayaan kini tersimpan
 di `clipyard.settings.v1`. Bukti: `screenshots/realtime-*.png` — terpotret
 14:18 WIB (zona diemulasi Asia/Jakarta), drift jam store vs `Date` = 0.
+
+Fase 8 (sayap timur + Ruang Manajer + POV robot): lantai diperluas ke
+timur (x −8…8 → −8…13,2; konstanta `ROOM.X_MIN/X_MAX/CX/BOSS_X`). Utara
+sayap baru = **Ruang Manajer** kaca (masuk dari ruang meeting): meja
+eksekutif + kursi bos, monitor ganda live "command deck" (jam nyata,
+statistik, banner amber "N menunggu OK"), sofa tamu, rak buku, credenza,
+sign RUANG MANAJER. **Klik komputer manajer → Panel Manajer**: sapaan
+mengikuti jam nyata, ringkasan studio, approval menunggu dengan tombol
+OK/Tolak (data live yang sama dengan inbox), beri tugas cepat ke agen
+mana pun, buat laporan sekarang, pintasan halaman Kelola, dan tombol POV
+per robot. Selatan sayap baru = ruang istirahat mengalir ke **pantry**
+(counter, vending "KOPI 24/7", meja tinggi; beanbag BOLT pindah ke sana).
+**Mode POV**: kamera perspektif menempel di kepala robot (registry pose
+per-frame di `hq-robots.ts`), ikut berjalan + bob langkah, seret untuk
+menengok (batas leher ±137°), lampu visor lembut, overlay visor dengan
+status + progress job, ‹ ›/panah untuk pindah robot, Esc keluar (kamera
+isometrik pulih utuh). Masuk POV via tombol POV di ViewControls, ikon
+mata di kartu agen, atau Panel Manajer. Fokus kamera seleksi agen kini
+memakai posisi robot live. Bukti: `screenshots/fase8-*.png` (terpotret
+18:24–18:47 WIB — Senja, demo off-shift).

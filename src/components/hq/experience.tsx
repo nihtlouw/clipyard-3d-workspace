@@ -1,25 +1,35 @@
 import { useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { AdaptiveDpr, PerformanceMonitor } from "@react-three/drei";
+import { AdaptiveDpr, OrthographicCamera, PerformanceMonitor, PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
 import { initFloorFeed } from "@/lib/hq-floor";
 import { useHqStore } from "@/lib/hq-store";
 import { Agents } from "./agents";
 import { HqHud } from "./hud";
-import { CameraControls, CameraRig, ClockDriver, START, StudioLighting, ResponsiveZoom } from "./sky";
+import { CameraControls, CameraRig, ClockDriver, PovRig, START, StudioLighting, ResponsiveZoom } from "./sky";
 import { World } from "./world";
 
 function Scene() {
   const controls = useRef<any>(null);
+  const povAgent = useHqStore((s) => s.povAgent);
   return (
     <>
       <StudioLighting />
       <ClockDriver />
       <World />
       <Agents />
-      <CameraControls controls={controls} />
-      <CameraRig controls={controls} />
-      <ResponsiveZoom />
+      {/* Fase 8: isometric diorama cam ⇄ first-person robot cam */}
+      <OrthographicCamera makeDefault={!povAgent} position={START.pos} zoom={START.zoom} near={1} far={160} />
+      <PerspectiveCamera makeDefault={!!povAgent} fov={62} near={0.05} far={140} position={[0, 1.4, 0]} />
+      {!povAgent ? (
+        <>
+          <CameraControls controls={controls} />
+          <CameraRig controls={controls} />
+          <ResponsiveZoom />
+        </>
+      ) : (
+        <PovRig />
+      )}
     </>
   );
 }

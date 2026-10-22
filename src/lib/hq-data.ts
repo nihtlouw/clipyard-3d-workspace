@@ -6,12 +6,15 @@
  * (west windows + north TV wall), black-framed glass rooms on the east side,
  * 3 paired desk pods in the open area, white robots with agent-color accents.
  *
- * Floor plan (world units, room x∈[-8,8], z∈[-6,6], camera from south-east):
- *   ┌─ north wall (TV + whiteboard) ──────────────────┐
- *   │ windows │  open pods        │ MEETING (glass)   │
- *   │ (west)  │  P1 P4  P2        ├─ partition ───────┤
- *   │ credenza│       P3          │ REHAT  (glass)    │
- *   └────────── open cut (south) ───┴── glass ────────┘
+ * Floor plan (world units, room x∈[-8,13.2], z∈[-6,6], camera from south-east):
+ *   ┌─ north wall (TV + whiteboard) ────────────────────────────────┐
+ *   │ windows │  open pods        │ MEETING │ RUANG MANAJER        │
+ *   │ (west)  │  P1 P4  P2        ├─ partisi ┴─ partisi ──────────┤
+ *   │ credenza│       P3          │ REHAT (glass) → pantry (baru)  │
+ *   └────────── open cut (south) ───┴── glass ────────────────────┘
+ *
+ * Fase 8: east wing (x 8→13.2) — the manager's glass office (north, entered
+ * from the meeting room) + the rest room flows east into a pantry corner.
  */
 
 export type AgentId = "akira" | "nova" | "hook" | "lexa" | "pixel" | "bolt";
@@ -43,18 +46,37 @@ export interface AgentInfo {
 
 /** Shared floor-plan constants (world.tsx + agents.tsx + sky.tsx all read these). */
 export const ROOM = {
-  W: 16,
+  /** full floor width — asymmetric bounds: original bay + Fase 8 east wing */
+  W: 21.2,
+  X_MIN: -8,
+  X_MAX: 13.2,
+  /** floor center x (slab/north wall/floor plane sit here, not at 0) */
+  CX: 2.6,
   D: 12,
   H: 3.3,
   /** x of the glass line separating open area from the glass rooms */
   GLASS_X: 2.0,
+  /** x of the glass line separating the Fase 8 east wing (manager + pantry) */
+  BOSS_X: 8,
   /** z of the glass partition between meeting (north) and rest (south) rooms */
   PARTITION_Z: -0.4,
   MEETING_DOOR_Z: -3.3,
   LOUNGE_DOOR_Z: 2.4,
+  /** door from the meeting room into the manager's office (on the BOSS_X line) */
+  BOSS_DOOR_Z: -1.6,
   DOOR_W: 1.05,
   /** agent base height while seated on a desk/meeting chair */
   SEAT_Y: 0.44,
+} as const;
+
+/** The user's own desk in the Ruang Manajer (Fase 8) — clickable PC lives here. */
+export const MANAGER = {
+  /** desk center (x, z); the chair sits east of it, manager faces the team (-x) */
+  desk: [11.5, -3.2] as [number, number],
+  chair: [12.45, -3.2] as [number, number],
+  chairYaw: -Math.PI / 2,
+  /** camera focus point when the manager PC is selected */
+  focus: [11.35, -3.2] as [number, number],
 } as const;
 
 /** Desk pods: [centerX, centerZ]. Each pod = 2 desks back-to-back (agents face ±z). */
@@ -201,10 +223,10 @@ export const AGENTS: AgentInfo[] = [
     vehicle: "Orange work pickup",
     desk: [-0.7, 4.18],
     deskYaw: Math.PI,
-    lounge: [4.5, 5.0],
+    lounge: [8.6, 5.5],
     loungeY: 0.26,
     verb: "rendering",
-    loungeYaw: 2.6,
+    loungeYaw: -2.2,
   },
 ];
 

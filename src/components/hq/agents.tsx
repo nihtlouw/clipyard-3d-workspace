@@ -13,6 +13,7 @@ import { AGENTS, MEETING_SEATS, ROOM, type AgentInfo } from "@/lib/hq-data";
 import { agentActivity } from "@/lib/hq-profiles";
 import { createNameplate } from "@/lib/hq-textures";
 import { currentJobFor } from "@/lib/hq-jobs";
+import { robotPoses, type RobotPose } from "@/lib/hq-robots";
 import { isMeeting, isOnShift, useHqStore } from "@/lib/hq-store";
 
 function hoverCursor(e: ThreeEvent<PointerEvent>, on: boolean) {
@@ -87,6 +88,18 @@ function Robot({ info, index }: { info: AgentInfo; index: number }) {
   const plateText = useRef("");
 
   const seatPos = MEETING_SEATS[index];
+
+  // Fase 8: publish the live transform for the POV camera + focus rig
+  const pose = useMemo<RobotPose>(
+    () => ({ x: info.desk[0], y: ROOM.SEAT_Y, z: info.desk[1], yaw: info.deskYaw, walking: false }),
+    [info],
+  );
+  useEffect(() => {
+    robotPoses.set(info.id, pose);
+    return () => {
+      robotPoses.delete(info.id);
+    };
+  }, [info.id, pose]);
 
   useFrame((state, delta) => {
     const d = Math.min(delta, 0.1);
@@ -174,6 +187,12 @@ function Robot({ info, index }: { info: AgentInfo; index: number }) {
     g.rotation.z = walking ? Math.sin(t * 10 + phase) * 0.07 : 0;
     if (ringMesh.current) ringMesh.current.position.y = 0.02 - g.position.y; // keep the ring on the floor
 
+    pose.x = g.position.x;
+    pose.y = g.position.y;
+    pose.z = g.position.z;
+    pose.yaw = g.rotation.y;
+    pose.walking = walking;
+
     if (body.current) {
       const s = 1 + Math.sin(t * 2.1 + phase) * 0.01 + (walking ? Math.sin(t * 20) * 0.015 : 0);
       body.current.scale.set(1 / Math.sqrt(s), s, 1 / Math.sqrt(s));
@@ -200,13 +219,16 @@ function Robot({ info, index }: { info: AgentInfo; index: number }) {
     }
 
     if (plateMat.current && plateSprite.current) {
-      plateSprite.current.visible = labels || selected || hover;
+      // never show our own nameplate while the camera rides this robot's head
+      plateSprite.current.visible = (labels || selected || hover) && st.povAgent !== info.id;
       if (plateText.current !== statusText) {
         plateText.current = statusText;
         nameplate.redraw(statusText);
       }
       const cam = state.camera as THREE.OrthographicCamera;
-      const w = Math.min(2.7, (2.5 * 36) / (cam.zoom || 36));
+      // POV uses a perspective camera: keep plates modest so they don't
+      // swallow the frame when the host robot walks past a colleague
+      const w = st.povAgent ? 0.95 : Math.min(2.7, (2.5 * 36) / (cam.zoom || 36));
       plateSprite.current.scale.set(w, w * 0.233, 1);
     }
   });

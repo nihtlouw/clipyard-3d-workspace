@@ -24,6 +24,8 @@ import {
   Zap,
 } from "lucide-react";
 import { AgentWorkPanel } from "@/components/dash/agent-panel";
+import { ManagerPanel } from "./manager-panel";
+import { PovOverlay } from "./pov-overlay";
 import { DASH_NAV } from "@/components/dash/shell";
 import { decideApproval } from "@/lib/hq-actions";
 import { agentActivity } from "@/lib/hq-profiles";
@@ -44,6 +46,7 @@ const KIND_LABEL: Record<VehicleInfo["kind"], string> = {
 export function HqHud() {
   const hudHidden = useHqStore((s) => s.hudHidden);
   const setHudHidden = useHqStore((s) => s.setHudHidden);
+  const povAgent = useHqStore((s) => s.povAgent);
 
   // H toggles a clean, panel-free diorama view (nice for screenshots/OBS)
   useEffect(() => {
@@ -56,6 +59,9 @@ export function HqHud() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [setHudHidden]);
+
+  // Fase 8: riding a robot's head — only the visor overlay stays
+  if (povAgent) return <PovOverlay />;
 
   if (hudHidden) {
     return (
@@ -287,6 +293,8 @@ function ViewControls() {
   const setAutoOrbit = useHqStore((s) => s.setAutoOrbit);
   const requestResetView = useHqStore((s) => s.requestResetView);
   const setHudHidden = useHqStore((s) => s.setHudHidden);
+  const setPovAgent = useHqStore((s) => s.setPovAgent);
+  const selection = useHqStore((s) => s.selection);
   const [full, setFull] = useState(false);
 
   const toggleFullscreen = () => {
@@ -336,6 +344,14 @@ function ViewControls() {
         </button>
         <button onClick={() => setAutoOrbit(!autoOrbit)} className={toggleCls(autoOrbit)} aria-pressed={autoOrbit} title="Kamera bergoyang pelan otomatis">
           Auto-sway
+        </button>
+        <button
+          onClick={() => setPovAgent(selection?.kind === "agent" ? (selection.id as (typeof AGENTS)[number]["id"]) : AGENTS[0].id)}
+          className={toggleCls(false)}
+          title="Lihat kantor dari mata robot (klik robot dulu untuk memilih)"
+        >
+          <Eye className="h-3 w-3" />
+          <span className="hidden min-[430px]:inline">POV</span>
         </button>
         <span className="mx-1 hidden h-4 w-px bg-white/12 sm:block" />
         <button onClick={requestResetView} className={iconBtnCls} title="Sudut awal" aria-label="Sudut awal">
@@ -634,6 +650,7 @@ function AgentCards() {
   const hour = useHqStore((s) => s.hour);
   const demoShift = useHqStore((s) => s.demoShift);
   const select = useHqStore((s) => s.select);
+  const setPovAgent = useHqStore((s) => s.setPovAgent);
   const on = isOnShift(hour);
   const meeting = isMeeting(hour);
 
@@ -695,6 +712,26 @@ function AgentCards() {
               >
                 {status.label}
               </span>
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label={`POV dari mata ${p.name}`}
+                title={`POV ${p.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPovAgent(a.id);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    setPovAgent(a.id);
+                  }
+                }}
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-[#98a1c4] transition hover:bg-white/20 hover:text-white"
+              >
+                <Eye className="h-3 w-3" />
+              </span>
             </div>
             <p className="mt-0.5 truncate text-[8px] font-medium leading-tight text-[#98a1c4] sm:mt-1 sm:text-[9.5px]">
               {p.role}
@@ -741,6 +778,15 @@ function DetailCard() {
   }, [selection, select]);
 
   if (!selection) return null;
+
+  // Fase 8: the manager's PC in the Ruang Manajer opens the boss panel
+  if (selection.kind === "manager") {
+    return (
+      <div className="hq-scroll pointer-events-auto absolute bottom-[7.5rem] left-2 max-h-[calc(100vh-11rem)] w-[min(92vw,372px)] overflow-y-auto rounded-2xl border border-white/10 bg-[#11162a]/94 p-3.5 shadow-[0_18px_40px_-20px_rgba(35,39,70,0.45)] backdrop-blur-2xl sm:left-3 lg:bottom-[9rem]">
+        <ManagerPanel onClose={() => select(null)} />
+      </div>
+    );
+  }
 
   const agent = selection.kind === "agent" ? AGENTS.find((a) => a.id === selection.id) : undefined;
   const vehicle = selection.kind === "vehicle" ? VEHICLES.find((v) => v.id === selection.id) : undefined;
