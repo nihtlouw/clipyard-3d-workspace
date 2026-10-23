@@ -75,6 +75,8 @@ export const MANAGER = {
   desk: [11.5, -3.2] as [number, number],
   chair: [12.45, -3.2] as [number, number],
   chairYaw: -Math.PI / 2,
+  /** boss accent — the manager avatar's gold trim + POV overlay identity */
+  accent: "#f5b45e",
   /** camera focus point when the manager PC is selected */
   focus: [11.35, -3.2] as [number, number],
 } as const;

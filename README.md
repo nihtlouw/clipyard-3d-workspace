@@ -377,3 +377,18 @@ isometrik pulih utuh). Masuk POV via tombol POV di ViewControls, ikon
 mata di kartu agen, atau Panel Manajer. Fokus kamera seleksi agen kini
 memakai posisi robot live. Bukti: `screenshots/fase8-*.png` (terpotret
 18:24–18:47 WIB — Senja, demo off-shift).
+
+Fase 9 (avatar BOS + POV kursi manajer): sang bos kini punya avatar
+sendiri (`boss.tsx`) — robot kerang yang sama seperti kru, tapi tanpa
+antena & core dada: diganti **mahkota emas** (band + 4 kerucut + permata
+amber yang berdenyut saat ada yang menunggu) dan **dasi merah**. Ia duduk
+di kursi eksekutif dan hidup dalam loop kecil: mengetik → ngopi (mug
+diangkat dari meja ke visor) → bersandar mengawasi (kepala menyapu
+ruangan). Saat ada approval menunggu, ia menoleh ke pintu ruang meeting
+dan nameplate-nya berganti "ada yang minta OK!". POV diperluas ke takhta:
+`PovId = AgentId | "manager"` (store `povAgent` → `povTarget`), tombol
+"Duduk di kursi bos (POV)" di Panel Manajer, target ke-7 di overlay POV
+dengan ikon mahkota + peringatan approval. `RobotPose` kini membawa
+`pitch` agar pandangan mengikuti anggukan kepala; gestur bos dibekukan
+lembut saat jadi host POV. Bukti: `screenshots/fase9-*.png` (terpotret
+malam — mode 24/7, pekerjaan nyata yang sama).
