@@ -3,9 +3,11 @@ import { Canvas } from "@react-three/fiber";
 import { AdaptiveDpr, OrthographicCamera, PerformanceMonitor, PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
 import { initFloorFeed } from "@/lib/hq-floor";
+import { useBubbleDirector } from "@/lib/hq-bubbles";
 import { useHqStore } from "@/lib/hq-store";
 import { Agents } from "./agents";
 import { BossAvatar } from "./boss";
+import { SpeechBubbles } from "./bubbles";
 import { HqHud } from "./hud";
 import { CameraControls, CameraRig, ClockDriver, PovRig, START, StudioLighting, ResponsiveZoom } from "./sky";
 import { World } from "./world";
@@ -20,6 +22,7 @@ function Scene() {
       <World />
       <Agents />
       <BossAvatar />
+      <SpeechBubbles />
       {/* Fase 8: isometric diorama cam ⇄ first-person robot cam */}
       <OrthographicCamera makeDefault={!povTarget} position={START.pos} zoom={START.zoom} near={1} far={160} />
       <PerspectiveCamera makeDefault={!!povTarget} fov={62} near={0.05} far={140} position={[0, 1.4, 0]} />
@@ -41,6 +44,9 @@ export function HqExperience() {
   const [degraded, setDegraded] = useState(false);
   const [, setReady] = useState(false);
   const select = useHqStore((s) => s.select);
+
+  // Fase 10: let the crew talk (event + ambient speech bubbles)
+  useBubbleDirector();
 
   // WebGL + canvas textures need the browser
   useEffect(() => setMounted(true), []);
