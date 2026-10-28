@@ -392,3 +392,17 @@ dengan ikon mahkota + peringatan approval. `RobotPose` kini membawa
 `pitch` agar pandangan mengikuti anggukan kepala; gestur bos dibekukan
 lembut saat jadi host POV. Bukti: `screenshots/fase9-*.png` (terpotret
 malam — mode 24/7, pekerjaan nyata yang sama).
+
+Fase 10 (gelembung percakapan): para robot (dan sang BOS) kini sesekali
+*berbicara* lewat gelembung kecil di atas kepala (`hq-bubbles.ts` +
+`bubbles.tsx`; drei `Html` mengikuti registry pose per frame). Dua jenis
+dialog — **peristiwa**: job selesai ("Kelar!"), gagal ("Error nih!"),
+mulai ("Siap, mulai!"), minta OK ("Bos, minta OK!" — dijawab bos "Ada
+yang minta OK?" sedetik kemudian), selesai diputuskan ("Siap, lanjut!");
+dan **ambient** sesuai aktivitas nyata `agentActivity` (kerja: "Fokus
+dulu…" atau judul job + %; santai: "Ngopi dulu"; antre; di luar jadwal:
+"Zzz…"). Maksimal 2 gelembung ambient bersamaan (total 3), cooldown per
+pembicara 24–40 dtk, ikon Lucide + border warna pembicara, nada
+biasa/sukses/error/peringatan; gelembung milik host POV disembunyikan.
+Murni kosmetik — tidak memengaruhi robot. Bukti:
+`screenshots/fase10-*.png`.

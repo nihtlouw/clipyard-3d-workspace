@@ -309,3 +309,26 @@
 .hq-no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Fase 10 — robot speech bubbles (drei Html wrapper + pop-in) */
+.hq-bubble-wrap {
+  pointer-events: none !important;
+}
+@keyframes bubble-pop {
+  0% {
+    transform: translateY(6px) scale(0.7);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(-1px) scale(1.04);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+.hq-bubble {
+  animation: bubble-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  will-change: transform, opacity;
+}
